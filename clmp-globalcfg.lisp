@@ -8,10 +8,19 @@
 (setq foreground cl-ncurses:color_white)
 (setq background cl-ncurses:color_black)
 
-(setq config-file (namestring (make-pathname :directory (namestring (user-homedir-pathname)) :name ".clmp" :type "cfg")))
+(setq config-file (namestring (make-pathname :directory
+					     #+sbcl
+					     (namestring (user-homedir-pathname))
+					     #+clisp
+					     (user-homedir-pathname)
+					     :name ".clmp" :type "cfg")))
 
 (defun read-config-file ()
-  (if (probe-file (make-pathname :directory config-file))
+  (if (probe-file 
+       #+sbcl
+       (make-pathname :directory config-file)
+       #+clisp
+       (pathname config-file))
       (let ((in (open (namestring config-file) :if-does-not-exist nil)))
 	(when (not (null in))
 	  (loop for line = (read-line in nil :eof)

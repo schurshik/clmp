@@ -94,11 +94,17 @@
   (cl-ncurses:mvwprintw (get-window self) 0 0 (namestring (get-curdir self))))
 
 (defmethod print-filetype ((self clmp-fmanager))
+  #+sbcl
   (let ((s (make-string-output-stream)))
     (sb-ext:run-program "/usr/bin/file" (list "--brief" (namestring (nth (get-curind self) (get-lsdir self)))) :output s)
     (let ((window (get-window self))
 	  (result-string (string-right-trim '(#\newline) (get-output-stream-string s))))
-      (cl-ncurses:mvwprintw window (- (cl-ncurses:getmaxy window) 1) 0 result-string))))
+      (cl-ncurses:mvwprintw window (- (cl-ncurses:getmaxy window) 1) 0 result-string)))
+  #+clisp
+  (with-open-stream (stream (ext:run-program "/usr/bin/file" :arguments (list "--brief" (namestring (nth (get-curind self) (get-lsdir self)))) :output :stream))
+		    (let ((window (get-window self))
+			  (result-string (string-right-trim '(#\newline) (read-line stream nil nil))))
+		      (cl-ncurses:mvwprintw window (- (cl-ncurses:getmaxy window) 1) 0 result-string))))
 
 (defmethod print-lsdir ((self clmp-fmanager))
   (let ((row +startoffset-row+)
@@ -117,15 +123,29 @@
 
 (defmethod change-dir ((self clmp-fmanager) &optional (dir +home-dir+))
   (let ((dir-name (namestring dir)))
-    (when (and (probe-file dir) (is-dir? dir-name))
+    (when (and #+sbcl(probe-file dir) #+clisp(not nil) (is-dir? dir-name))
       (set-curdir dir self)
       (set-curind 0 self)
       (set-currow +startoffset-row+ self)
       (set-curcol +startoffset-column+ self)
       (if (string= dir-name "/")
-	  (set-lsdir (directory (make-pathname :name :wild :type :wild :directory dir-name :defaults (namestring +home-dir+))) self)
-	(let ((parent-dir (merge-pathnames (make-pathname :directory '(:relative :up)) (make-pathname :directory dir-name)))) 
-	  (set-lsdir (cons parent-dir (directory (make-pathname :name :wild :type :wild :directory dir-name :defaults (namestring +home-dir+)))) self))))))
+	  (set-lsdir
+	   #+sbcl
+	   (directory (make-pathname :name :wild :type :wild :directory dir-name :defaults (namestring +home-dir+)))
+	   #+clisp
+	   (append (directory (concatenate 'string dir-name "*/")) (directory (concatenate 'string dir-name "*")))
+	   self)
+	(let ((parent-dir (merge-pathnames (make-pathname :directory '(:relative :up))
+					   #+sbcl
+					   (make-pathname :directory dir-name)
+					   #+clisp
+					   (pathname dir-name))))
+	  (set-lsdir (cons parent-dir
+			   #+sbcl
+			   (directory (make-pathname :name :wild :type :wild :directory dir-name :defaults (namestring +home-dir+)))
+			   #+clisp
+			   (append (directory (concatenate 'string dir-name "*/")) (directory (concatenate 'string dir-name "*"))))
+			   self))))))
 
 (defmethod gointo-curdir ((self clmp-fmanager))
   (change-dir self (truename (nth (get-curind self) (get-lsdir self))))

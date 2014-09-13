@@ -12,6 +12,9 @@
 
 (defvar *g-clmp-player* nil)
 
+#+clisp
+(defvar *g-sleep-thread* nil)
+
 (defstruct track-info
   (artist "Unknown")
   (title "Unknown")
@@ -41,10 +44,16 @@
 	     :initform nil
 	     :reader get-out-fifo
 	     :writer set-out-fifo)
-   (process :initarg :process
+   #+sbcl
+   (mprocess :initarg :mprocess
 	    :initform 0
-	    :reader get-process
-	    :writer set-process)
+	    :reader get-mprocess
+	    :writer set-mprocess)
+   #+clisp
+   (mthread :initarg :mthread
+	    :initform nil
+	    :reader get-mthread
+	    :writer set-mthread)
    (thread :initarg :thread
 	   :initform nil
 	   :reader get-thread
@@ -164,18 +173,34 @@
     (cl-ncurses:wrefresh right-window)))
   
 (defmethod create-in-fifo ((self clmp-player))
-  (if (probe-file (make-pathname :directory +in-fifo-path+))
+  (if (probe-file 
+       #+sbcl
+       (make-pathname :directory +in-fifo-path+)
+       #+clisp
+       (pathname +in-fifo-path+))
       (delete-file +in-fifo-path+))
+  #+sbcl
   (let ((mode (logior sb-posix:s-iwusr sb-posix:s-irusr)))
-    (sb-posix:mkfifo +in-fifo-path+ mode)))
+    (sb-posix:mkfifo +in-fifo-path+ mode))
+  #+clisp
+  (ext:run-program "mkfifo" :arguments (list +in-fifo-path+ "--mode=0600")))
 
 (defmethod destroy-in-fifo ((self clmp-player))
-  (if (probe-file (make-pathname :directory +in-fifo-path+))
+  (if (probe-file
+       #+sbcl
+       (make-pathname :directory +in-fifo-path+)
+       #+clisp
+       (pathname +in-fifo-path+))
       (delete-file +in-fifo-path+)))
 
 (defmethod create-out-fifo ((self clmp-player))
-  (if (probe-file (make-pathname :directory +out-fifo-path+))
+  (if (probe-file
+       #+sbcl
+       (make-pathname :directory +out-fifo-path+)
+       #+clisp
+       (pathname +out-fifo-path+))
       (delete-file +out-fifo-path+))
+  #+sbcl
   (let ((mode (logior sb-posix:s-iwusr sb-posix:s-irusr)))
     (sb-posix:mkfifo +out-fifo-path+ mode)
     (let ((out (open +out-fifo-path+ :direction :io :if-exists :supersede)))
@@ -187,36 +212,85 @@
 	(let ((flags (logior flags sb-posix:o-nonblock)))
 	  (when (< (sb-posix:fcntl out sb-posix:f-setfl flags) 0)
 	    (error "can not call fcntl"))
-	  (set-out-fifo out self))))))
+	  (set-out-fifo out self)))))
+  #+clisp
+  (progn
+    (ext:run-program "mkfifo" :arguments (list +out-fifo-path+ "--mode=0600"))
+    (set-out-fifo (open +out-fifo-path+ :direction :io :if-exists :supersede) self)))
 
 (defmethod destroy-out-fifo ((self clmp-player))
   (close (get-out-fifo self))
-  (if (probe-file (make-pathname :directory +out-fifo-path+))
+  (if (probe-file
+       #+sbcl
+       (make-pathname :directory +out-fifo-path+)
+       #+clisp
+       (pathname +out-fifo-path+))
       (delete-file +out-fifo-path+)))
 
 (defmethod exec-player ((self clmp-player))
+  #+sbcl
   (sb-ext:run-program "/usr/bin/mplayer" (list "-idle" "-slave" "-input" (format nil "file=~a" +in-fifo-path+) "2>/dev/null") :output (get-out-fifo self))
-  (sb-ext:quit :unix-status 0))
+  #+clisp
+  (with-open-stream (istream
+  		     (ext:make-pipe-input-stream (concatenate 'string "/usr/bin/mplayer" " -idle" " -slave" " -input" (format nil " file=~a" +in-fifo-path+) " 2>/dev/null")))
+		    (loop (not nil) (loop for line = (read-line istream nil nil) while line do (write-line line (get-out-fifo self)))))
+  #+sbcl
+  (sb-ext:quit :unix-status 0)
+  #+clisp
+  (ext:quit 0))
 
+#+sbcl
 (defun signal-handle (sig info context)
   (declare (ignore info context))
   (when (= sig sb-posix:sigalrm)
     (when (eq (get-state *g-clmp-player*) 'play)
-      (sb-posix:alarm +alarm-time+)
       (get-timepos *g-clmp-player*)
-      (get-percpos *g-clmp-player*))))
+      (get-percpos *g-clmp-player*)
+      (sb-posix:alarm +alarm-time+))))
 
-(defmethod create-process ((self clmp-player))
+#+clisp
+(defmacro signal-handle (signo &body body)
+  (let ((handler (gensym "HANDLER")))
+    `(progn
+       (cffi:defcallback ,handler :void ((signo :int))
+         (declare (ignore signo))
+         ,@body)
+       (cffi:foreign-funcall "signal" :int ,signo :pointer (cffi:callback ,handler) :int))))
+
+#+clisp
+(defun create-sleep-thread ()
+  (setq *g-sleep-thread* (bordeaux-threads:make-thread (lambda () (catch 'break-sleep-thread
+								    (loop (not nil)
+									  (when (eq (get-state *g-clmp-player*) 'play)
+									    (get-timepos *g-clmp-player*)
+									    (get-percpos *g-clmp-player*)
+									    (sleep +alarm-time+))))))))
+
+#+sbcl
+(defmethod create-mprocess ((self clmp-player))
   (let ((pid (sb-posix:fork)))
     (cond ((zerop pid) (exec-player self))
-	  ((plusp pid) (set-process pid self))
+	  ((plusp pid) (set-mprocess pid self))
 	  (t (error "can not create process")))
     (sb-sys:enable-interrupt sb-posix:sigalrm #'signal-handle)))
 
-(defmethod destroy-process ((self clmp-player))
+#+clisp
+(defmethod create-mthread ((self clmp-player))
+  (set-mthread (bordeaux-threads:make-thread (lambda () (catch 'break-mthread (exec-player self)))) self)
+  (create-sleep-thread))
+
+#+sbcl
+(defmethod destroy-mprocess ((self clmp-player))
   (quit-player self)
-  ;(sb-posix:kill (get-process self) sb-posix:sigusr1)
-  (sb-posix:waitpid (get-process self) 0))
+  (sb-posix:waitpid (get-mprocess self) 0))
+
+#+clisp
+(defmethod destroy-mthread ((self clmp-player))
+  (quit-player self)
+  (bordeaux-threads:interrupt-thread (get-mthread self) (lambda () (throw 'break-mthread 'interrupted-mthread)))
+  (bordeaux-threads:join-thread (get-mthread self))
+  (bordeaux-threads:interrupt-thread *g-sleep-thread* (lambda () (throw 'break-sleep-thread 'interrupted-sleep-thread)))
+  (bordeaux-threads:join-thread *g-sleep-thread*))
 
 (defmethod create-thread ((self clmp-player))
   (let ((func (lambda ()
@@ -273,11 +347,20 @@
 				(set-volume self volume)
 				(render-left-window *g-clmp-player*)
 				(return-from iter))))))))))
-    (set-thread (sb-thread:make-thread func) self)))
+    #+sbcl
+    (set-thread (sb-thread:make-thread func) self)
+    #+clisp
+    (set-thread (bordeaux-threads:make-thread (lambda () (catch 'break-thread (funcall func)))) self)))
 
 (defmethod destroy-thread ((self clmp-player))
-  (sb-thread:terminate-thread (get-thread self))
-  (sb-thread:join-thread (get-thread self) :timeout 10 :default 1))
+  #+sbcl
+  (progn
+    (sb-thread:terminate-thread (get-thread self))
+    (sb-thread:join-thread (get-thread self) :timeout 10 :default 1))
+  #+clisp
+  (progn
+    (bordeaux-threads:interrupt-thread (get-thread self) (lambda () (throw 'break-thread 'interrupted-thread)))
+    (bordeaux-threads:join-thread (get-thread self))))
 
 (defmethod create ((self clmp-player) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?))
   (setq *g-clmp-player* self)
@@ -285,12 +368,18 @@
     (create-windows self :height h :width w :row r :column c))
   (create-in-fifo self)
   (create-out-fifo self)
-  (create-process self)
+  #+sbcl
+  (create-mprocess self)
+  #+clisp
+  (create-mthread self)
   (create-thread self))
 
 (defmethod destroy ((self clmp-player))
   (destroy-thread self)
-  (destroy-process self)
+  #+sbcl
+  (destroy-mprocess self)
+  #+clisp
+  (destroy-mthread self)
   (destroy-out-fifo self)
   (destroy-in-fifo self)
   (destroy-windows self))
@@ -316,6 +405,7 @@
   (load-file self play-file)
   (set-state 'play self)
   (init-track self)
+  #+sbcl
   (sb-posix:alarm +alarm-time+))
 
 (defmethod play-pause-file ((self clmp-player))
@@ -325,6 +415,7 @@
 	(t (error "unknown value")))
   (printto-in-fifo self "pause")
   (when (eq (get-state self) 'play)
+    #+sbcl
     (sb-posix:alarm +alarm-time+)))
 
 (defmethod stop-file ((self clmp-player))
@@ -393,6 +484,7 @@
   (get-timepos self)
   (when (eq (get-state self) 'pause)
     (set-state 'play self)
+    #+sbcl
     (sb-posix:alarm +alarm-time+)))
 
 (defmethod dec-timepos ((self clmp-player))
@@ -400,6 +492,7 @@
   (get-timepos self)
   (when (eq (get-state self) 'pause)
     (set-state 'play self)
+    #+sbcl
     (sb-posix:alarm +alarm-time+)))
 
 (defmethod get-timepos ((self clmp-player))
@@ -448,6 +541,7 @@
   (get-volume self)
   (when (eq (get-state self) 'pause)
     (set-state 'play self)
+    #+sbcl
     (sb-posix:alarm +alarm-time+)))
 ;(defmethod inc-volume ((self clmp-player))
 ;  (sb-ext:run-program "/usr/bin/amixer" (list "set" "PCM" "6+" "unmute")))
@@ -457,6 +551,7 @@
   (get-volume self)
   (when (eq (get-state self) 'pause)
     (set-state 'play self)
+    #+sbcl
     (sb-posix:alarm +alarm-time+)))
 ;(defmethod dec-volume ((self clmp-player))
 ;  (sb-ext:run-program "/usr/bin/amixer" (list "set" "PCM" "6-" "unmute")))

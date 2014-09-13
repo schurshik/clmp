@@ -189,6 +189,7 @@
   (press-enter self))
 
 (defmethod process-keys ((self clmp-iface))
+  #+sbcl
   (sb-sys:enable-interrupt sb-posix:sigint #'(lambda (sig info context) (declare (ignore sig info context)) (set-isabort t *g-clmp-iface*)))
   (loop (not nil)
 	(cl-ncurses:wtimeout (get-window self) +timeout-press-msec+)
