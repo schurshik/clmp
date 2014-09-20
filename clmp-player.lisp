@@ -249,15 +249,6 @@
       (sb-posix:alarm +alarm-time+))))
 
 #+clisp
-(defmacro signal-handle (signo &body body)
-  (let ((handler (gensym "HANDLER")))
-    `(progn
-       (cffi:defcallback ,handler :void ((signo :int))
-         (declare (ignore signo))
-         ,@body)
-       (cffi:foreign-funcall "signal" :int ,signo :pointer (cffi:callback ,handler) :int))))
-
-#+clisp
 (defun create-sleep-thread ()
   (setq *g-sleep-thread* (bordeaux-threads:make-thread (lambda () (catch 'break-sleep-thread
 								    (loop (not nil)
