@@ -116,6 +116,11 @@
 	  (if (< row (- (cl-ncurses:getmaxy (get-window self)) +endoffset-row+))
 	      (progn (let ((file-name (namestring file)))
 		       (if (is-dir? file-name)
+			   #+clisp
+			   (if (and (= upper-index 0) (= row +startoffset-row+))
+			       (cl-ncurses:mvwprintw (get-window self) row column "../")
+			     (cl-ncurses:mvwprintw (get-window self) row column (dir-namestring file-name)))
+			   #+sbcl
 			   (cl-ncurses:mvwprintw (get-window self) row column (dir-namestring file-name))
 			 (cl-ncurses:mvwprintw (get-window self) row column (file-namestring file-name))))
 		     (incf row))
