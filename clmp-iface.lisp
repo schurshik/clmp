@@ -14,6 +14,10 @@
 
 (defconstant +key-right+ 261)
 
+(defconstant +key-pagedown+ 338)
+
+(defconstant +key-pageup+ 339)
+
 (defconstant +timeout-press-msec+ 1000)
 
 (defvar *g-clmp-iface* nil)
@@ -160,6 +164,12 @@
   (let ((fmanager (get-fmanager self)))
     (gointo-pardir fmanager)))
 
+(defmethod press-pagedown ((self clmp-iface))
+  (press-pagedown (get-fmanager self)))
+
+(defmethod press-pageup ((self clmp-iface))
+  (press-pageup (get-fmanager self)))
+
 (defmethod play-pause ((self clmp-iface))
   (play-pause-file (get-player self)))
 
@@ -202,6 +212,10 @@
 		 (press-down self))
 		((or (= key (char-int #\linefeed)) (= key (char-int #\l)))
 		 (press-enter self))
+		((= key +key-pagedown+)
+		 (press-pagedown self))
+		((= key +key-pageup+)
+		 (press-pageup self))
 		((= key (char-int #\p))
 		 (play-pause self))
 		((= key (char-int #\s))
