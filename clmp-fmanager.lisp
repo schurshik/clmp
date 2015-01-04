@@ -93,6 +93,27 @@
 (defmethod print-curdir ((self clmp-fmanager))
   (cl-ncurses:mvwprintw (get-window self) 0 0 (namestring (get-curdir self))))
 
+(defmethod is-audio-file ((self clmp-fmanager) file)
+  (let ((audio-file? #'(lambda (in-file)
+			 #+sbcl
+			 (let ((s (make-string-output-stream)))
+			   (sb-ext:run-program "/usr/bin/file" (list in-file "--mime-type") :output s)
+			   (let ((result-string (string-right-trim '(#\newline) (get-output-stream-string s))))
+			     (if (not (null (search ": audio/" result-string)))
+				 t
+			       nil)))
+			 #+clisp
+			 (with-open-stream (stream (ext:run-program "/usr/bin/file" :arguments (list in-file "--mime-type") :output :stream))
+					   (let ((result-string (string-right-trim '(#\newline) (read-line stream nil nil))))
+					     (if (not (null (search ": audio/" result-string)))
+						 t
+					       nil))))))
+    (if (funcall audio-file? file)
+	t
+      (progn (cl-ncurses:mvwprintw (get-window self) (- (cl-ncurses:getmaxy (get-window self)) 1) 0 "this file is not audio")
+	     (cl-ncurses:wrefresh (get-window self))
+	     nil))))
+
 (defmethod print-filetype ((self clmp-fmanager))
   #+sbcl
   (let ((s (make-string-output-stream)))

@@ -158,7 +158,8 @@
     (if (is-dir? dir)
 	(gointo-curdir fmanager)
       (let ((file dir))
-	(start-playback (get-player self) file)))))
+	(when (is-audio-file fmanager file)
+	    (start-playback (get-player self) file))))))
 
 (defmethod up-dir ((self clmp-iface))
   (let ((fmanager (get-fmanager self)))

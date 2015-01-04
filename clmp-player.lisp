@@ -392,7 +392,6 @@
   (get-volume self))
 
 (defmethod start-playback ((self clmp-player) play-file)
-  ; TODO: check a format of the file is music
   (load-file self play-file)
   (set-state 'play self)
   (init-track self)
