@@ -8,6 +8,8 @@
 
 (defconstant +out-fifo-path+ "/tmp/clmp-out.fifo")
 
+(defconstant +mplayer-bin+ "/usr/bin/mplayer")
+
 (defconstant +alarm-time+ 1)
 
 (defvar *g-clmp-player* nil)
@@ -46,9 +48,9 @@
 	     :writer set-out-fifo)
    #+sbcl
    (mprocess :initarg :mprocess
-	    :initform 0
-	    :reader get-mprocess
-	    :writer set-mprocess)
+	     :initform 0
+	     :reader get-mprocess
+	     :writer set-mprocess)
    #+clisp
    (mthread :initarg :mthread
 	    :initform nil
@@ -65,7 +67,15 @@
    (track :initarg :track
 	  :initform (make-track-info)
 	  :reader get-track
-	  :writer set-track)))
+	  :writer set-track)
+   (is-eof :initarg :is-eof
+	   :initform nil
+	   :reader get-is-eof
+	   :writer set-is-eof)
+   (play-filename :initarg :play-filename
+		  :initform nil
+		  :reader get-play-filename
+		  :writer set-play-filename)))
 
 (defmethod create-windows ((self clmp-player) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?))
   (when (and h? w? r? c?)
@@ -229,10 +239,10 @@
 
 (defmethod exec-player ((self clmp-player))
   #+sbcl
-  (sb-ext:run-program "/usr/bin/mplayer" (list "-idle" "-slave" "-input" (format nil "file=~a" +in-fifo-path+) "2>/dev/null") :output (get-out-fifo self))
+  (sb-ext:run-program +mplayer-bin+ (list "-idle" "-slave" "-msglevel" "all=1:statusline=5:global=6" "-input" (format nil "file=~a" +in-fifo-path+) "2>/dev/null") :output (get-out-fifo self))
   #+clisp
   (with-open-stream (istream
-  		     (ext:make-pipe-input-stream (concatenate 'string "/usr/bin/mplayer" " -idle" " -slave" " -input" (format nil " file=~a" +in-fifo-path+) " 2>/dev/null")))
+  		     (ext:make-pipe-input-stream (concatenate 'string +mplayer-bin+ " -idle" " -slave" " -msglevel" " all=1:statusline=5:global=6" " -input" (format nil " file=~a" +in-fifo-path+) " 2>/dev/null")))
 		    (loop (not nil) (loop for line = (read-line istream nil nil) while line do (write-line line (get-out-fifo self)))))
   #+sbcl
   (sb-ext:quit :unix-status 0)
@@ -337,6 +347,10 @@
 			      (when (not (null volume))
 				(set-volume self volume)
 				(render-left-window *g-clmp-player*)
+				(return-from iter)))
+			    (let ((eof-code (funcall get-value string "^EOF code: ([0-9]+)")))
+			      (when (and (not (null eof-code)) (string= eof-code "1"))
+				(set-is-eof t self)
 				(return-from iter))))))))))
     #+sbcl
     (set-thread (sb-thread:make-thread func) self)
@@ -395,6 +409,7 @@
   (load-file self play-file)
   (set-state 'play self)
   (init-track self)
+  (set-is-eof nil self)
   #+sbcl
   (sb-posix:alarm +alarm-time+))
 
@@ -414,6 +429,7 @@
     (set-state 'stop self)))
 
 (defmethod load-file ((self clmp-player) file)
+  (set-play-filename file self)
   (printto-in-fifo self (format nil "loadfile '~a'" file)))
 
 (defmethod quit-player ((self clmp-player))

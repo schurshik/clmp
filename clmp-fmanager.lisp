@@ -14,6 +14,8 @@
 
 (defconstant +endoffset-column+ 1)
 
+(defconstant +file-bin+ "/usr/bin/file")
+
 (defclass clmp-fmanager ()
   ((window :initarg :window
 	   :initform nil
@@ -93,36 +95,78 @@
 (defmethod print-curdir ((self clmp-fmanager))
   (cl-ncurses:mvwprintw (get-window self) 0 0 (namestring (get-curdir self))))
 
-(defmethod is-audio-file ((self clmp-fmanager) file)
+(defmethod is-audio-file ((self clmp-fmanager) file warning)
   (let ((audio-file? #'(lambda (in-file)
 			 #+sbcl
 			 (let ((s (make-string-output-stream)))
-			   (sb-ext:run-program "/usr/bin/file" (list in-file "--mime-type") :output s)
+			   (sb-ext:run-program +file-bin+ (list in-file "--mime-type") :output s)
 			   (let ((result-string (string-right-trim '(#\newline) (get-output-stream-string s))))
 			     (if (not (null (search ": audio/" result-string)))
 				 t
 			       nil)))
 			 #+clisp
-			 (with-open-stream (stream (ext:run-program "/usr/bin/file" :arguments (list in-file "--mime-type") :output :stream))
+			 (with-open-stream (stream (ext:run-program +file-bin+ :arguments (list in-file "--mime-type") :output :stream))
 					   (let ((result-string (string-right-trim '(#\newline) (read-line stream nil nil))))
 					     (if (not (null (search ": audio/" result-string)))
 						 t
 					       nil))))))
     (if (funcall audio-file? file)
 	t
-      (progn (cl-ncurses:mvwprintw (get-window self) (- (cl-ncurses:getmaxy (get-window self)) 1) 0 "this file is not audio")
-	     (cl-ncurses:wrefresh (get-window self))
+      (progn (when (warning)
+	       (let ((window (get-window self)))
+		  (cl-ncurses:mvwprintw window (- (cl-ncurses:getmaxy window) 1) 0 "this file is not audio")
+		  (cl-ncurses:wrefresh window)))
 	     nil))))
+
+(defmethod find-next-prev-rand-audio-file ((self clmp-fmanager) cur-full-filename find-where)
+  (when (not (or (eq find-where 'next) (eq find-where 'prev) (eq find-where 'rand)))
+    (return-from find-next-prev-rand-audio-file nil))
+  (let* ((dir-name (directory-namestring (pathname cur-full-filename)))
+  	 (cur-filename (file-namestring (pathname cur-full-filename)))
+  	 (lsdir
+  	  #+sbcl
+  	  (directory (make-pathname :name :wild :type :wild :directory dir-name :defaults (namestring +home-dir+)))
+  	  #+clisp
+  	  (append (directory (concatenate 'string dir-name "*/")) (directory (concatenate 'string dir-name "*")))))
+    (let ((i 0))
+      (block dolist-break
+  	(dolist (file lsdir)
+	  (let ((filename (file-namestring (namestring file))))
+	    (when (string= filename cur-filename)
+	      (return-from dolist-break))
+	    (incf i))))
+      (let ((randlst #'(lambda (count)
+			 (let ((lst ()))
+			   (loop do
+				 (let ((rnd (random count)))
+				   (unless (find rnd lst)
+				     (setq lst (cons rnd lst))))
+				 while (< (list-length lst) count))
+			   lst)))
+	    (newlst #'(lambda (in-lst indexes)
+			(let ((out-lst ()))
+			  (dolist (index indexes)
+				(setq out-lst (append out-lst (list (nth index in-lst)))))
+			  out-lst))))
+      (dolist (file (if (eq find-where 'next)
+  			(append (subseq lsdir (+ i 1)) (subseq lsdir 0 i))
+  		      (if (eq find-where 'prev)
+			  (append (reverse (subseq lsdir 0 i)) (reverse (subseq lsdir (+ i 1))))
+			(funcall newlst lsdir (funcall randlst (list-length lsdir))))))
+  	(let ((full-filename (namestring file)))
+  	  (when (is-audio-file self full-filename nil)
+  	    (return-from find-next-prev-rand-audio-file full-filename))))))
+    nil))
 
 (defmethod print-filetype ((self clmp-fmanager))
   #+sbcl
   (let ((s (make-string-output-stream)))
-    (sb-ext:run-program "/usr/bin/file" (list "--brief" (namestring (nth (get-curind self) (get-lsdir self)))) :output s)
+    (sb-ext:run-program +file-bin+ (list "--brief" (namestring (nth (get-curind self) (get-lsdir self)))) :output s)
     (let ((window (get-window self))
 	  (result-string (string-right-trim '(#\newline) (get-output-stream-string s))))
       (cl-ncurses:mvwprintw window (- (cl-ncurses:getmaxy window) 1) 0 result-string)))
   #+clisp
-  (with-open-stream (stream (ext:run-program "/usr/bin/file" :arguments (list "--brief" (namestring (nth (get-curind self) (get-lsdir self)))) :output :stream))
+  (with-open-stream (stream (ext:run-program +file-bin+ :arguments (list "--brief" (namestring (nth (get-curind self) (get-lsdir self)))) :output :stream))
 		    (let ((window (get-window self))
 			  (result-string (string-right-trim '(#\newline) (read-line stream nil nil))))
 		      (cl-ncurses:mvwprintw window (- (cl-ncurses:getmaxy window) 1) 0 result-string))))
