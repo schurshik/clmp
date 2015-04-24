@@ -22,7 +22,7 @@ CLNCURSES_PATH = ${packages_dir}/cl-ncurses/
 CLPPCRE_PATH = ${packages_dir}/cl-ppcre/
 BORDEAUX_PATH = ${packages_dir}/bordeaux-threads/
 BUILDAPP_PATH = ${packages_dir}/buildapp
-BUILDAPP = ${packages_dir}/buildapp
+BUILDAPP = \$(BUILDAPP_PATH)/buildapp
 SBCL_PATH = /usr/bin
 SBCL = \$(SBCL_PATH)/sbcl --noinform
 SBCL_SCRIPT = \$(SBCL_PATH)/sbcl --script
@@ -49,7 +49,7 @@ function create_makefile {
 
 SHELL := /bin/bash
 
-include Makefile.in.test
+include Makefile.in
 
 PROJ = clmp
 OUT = $(PROJ)

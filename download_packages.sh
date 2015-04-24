@@ -55,13 +55,10 @@ function compile {
     cd -
     cd ${packages_dir}/cffi && make
     cd -
-    echo "compile cl-ncurses"
     cd ${packages_dir}/cl-ncurses && make
     cd -
-    echo "compile buildapp"
     cd ${packages_dir}/buildapp && make
     cd -
-    echo "compile buildapp end"
 }
 
 function main {
