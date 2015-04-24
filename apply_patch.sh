@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# CLMP
+# apply_patch.sh
+# Developer: Branitskiy Alexander <schurshick@yahoo.com>
+
 clncurses_path=`cat Makefile.in | egrep "^[ \t]*CLNCURSES_PATH" | sed -e "s/.*=[ \t]*\([^ \t]*\)$/\1/"`
 
 cat <<EOF | patch ${clncurses_path}package.lisp 

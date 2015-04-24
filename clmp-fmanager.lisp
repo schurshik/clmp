@@ -112,7 +112,7 @@
 					       nil))))))
     (if (funcall audio-file? file)
 	t
-      (progn (when (warning)
+      (progn (unless (not warning)
 	       (let ((window (get-window self)))
 		  (cl-ncurses:mvwprintw window (- (cl-ncurses:getmaxy window) 1) 0 "this file is not audio")
 		  (cl-ncurses:wrefresh window)))

@@ -1,10 +1,55 @@
+#!/bin/bash
+
+# CLMP
+# configure.sh
+# Developer: Branitskiy Alexander <schurshick@yahoo.com>
+
+function create_makefile_in {
+    packages_dir=$1
+    cat <<EOF > Makefile.in
+# CLMP
+# Makefile.in
+# Developer: Branitskiy Alexander <schurshick@yahoo.com>
+
+ASDF_FILE = ${packages_dir}/asdf/asdf.lisp
+SB_POSIX_PATH = /usr/share/sbcl-source/contrib/sb-posix/
+UFFI_PATH = ${packages_dir}/uffi/
+ALEXANDRIA_PATH = ${packages_dir}/alexandria/
+TRIVIAL_FEATURES_PATH = ${packages_dir}/trivial-features/
+BABEL_PATH = ${packages_dir}/babel/
+CFFI_PATH = ${packages_dir}/cffi/
+CLNCURSES_PATH = ${packages_dir}/cl-ncurses/
+CLPPCRE_PATH = ${packages_dir}/cl-ppcre/
+BORDEAUX_PATH = ${packages_dir}/bordeaux-threads/
+BUILDAPP_PATH = ${packages_dir}/buildapp
+BUILDAPP = ${packages_dir}/buildapp
+SBCL_PATH = /usr/bin
+SBCL = \$(SBCL_PATH)/sbcl --noinform
+SBCL_SCRIPT = \$(SBCL_PATH)/sbcl --script
+CLISP_PATH = /usr/bin
+CLISP = \$(CLISP_PATH)/clisp --verbose
+CLISP_SCRIPT = \$(CLISP_PATH)/clisp --quiet
+# buildapp
+COMPILER = \$(BUILDAPP)
+# steel bank common lisp
+#COMPILER = \$(SBCL)
+#COMPILER = \$(SBCL_SCRIPT)
+# clisp compiled with option --with-threads=POSIX_THREADS
+#COMPILER = \$(CLISP)
+#COMPILER = \$(CLISP_SCRIPT)
+EOF
+
+}
+
+function create_makefile {
+    cat <<'EOF' > Makefile
 # CLMP
 # Makefile
 # Developer: Branitskiy Alexander <schurshick@yahoo.com>
 
 SHELL := /bin/bash
 
-include Makefile.in
+include Makefile.in.test
 
 PROJ = clmp
 OUT = $(PROJ)
@@ -126,3 +171,15 @@ clean:
 
 uninstall:
 	rm -f /usr/bin/$(OUT)
+EOF
+    
+}
+
+function main {
+    . download_packages.sh
+    create_makefile_in ${packages_dir}
+    create_makefile
+    . apply_patch.sh
+}
+
+main
