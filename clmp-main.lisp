@@ -14,4 +14,7 @@
     (destroy iface)))
 
 (defun entry-point ()
-  (apply 'main *command-line-arguments*))
+  #+sbcl
+  (apply 'main sb-ext:*posix-argv*)
+  #+clisp
+  (apply 'main ext:*args*))

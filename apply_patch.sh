@@ -18,7 +18,15 @@ cat <<EOF | patch ${clncurses_path}package.lisp
    (:export :SLK-LABEL :WINSTR :WINNSTR
             :HAS-COLORS :SETSCRREG
             :NONL :FALSE :SAVETTY
-@@ -181,7 +184,7 @@
+@@ -174,14 +177,14 @@
+ ;; On some versions of Linux, /usr/lib is a linker script to /lib
+ ;; (which SBCL barfs on), so we list /lib before /usr/lib.
+ (defvar *ncurses-search-paths* 
+-  #-win32'("/usr/local/lib64/" "/usr/local/lib/" "/lib64/" "/lib/" "/usr/lib64/" "/usr/lib/")
++  #-win32'("/usr/local/lib64/" "/usr/local/lib/" "/lib64/" "/lib/" "/usr/lib64/" "/usr/lib/" "/lib/x86_64-linux-gnu/")
+   #+win32'("/users/jacob/src/pdc31dll/"))
+         
+ 
  (defparameter *ncurses-path*
    #-win32
    (find-foreign-library

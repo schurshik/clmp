@@ -11,7 +11,7 @@ function create_makefile_in {
 # Makefile.in
 # Developer: Branitskiy Alexander <schurshick@yahoo.com>
 
-ASDF_FILE = ${packages_dir}/asdf/asdf.lisp
+ASDF_FILE = ${packages_dir}/asdf/build/asdf.lisp
 SB_POSIX_PATH = /usr/share/sbcl-source/contrib/sb-posix/
 UFFI_PATH = ${packages_dir}/uffi/
 ALEXANDRIA_PATH = ${packages_dir}/alexandria/

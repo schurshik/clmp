@@ -83,12 +83,12 @@
   (not (null (cl-ppcre:scan "/$" test-dir))))
 
 (defmethod hightlight-line ((self clmp-fmanager))
-  (cl-ncurses:init-pair 2 cl-ncurses:color_black cl-ncurses:color_white)
+  (cl-ncurses:init-pair 2 cl-ncurses:color_black cursor-color)
   (let ((window (get-window self)))
     (cl-ncurses:mvwchgat window (get-currow self) (get-curcol self) (- (cl-ncurses:getmaxx window) 2) cl-ncurses:a_normal 2 nil)))
 
 (defmethod unhightlight-line ((self clmp-fmanager))
-  (cl-ncurses:init-pair 3 cl-ncurses:color_white cl-ncurses:color_black)
+  (cl-ncurses:init-pair 3 cursor-color cl-ncurses:color_black)
   (let ((window (get-window self)))
     (cl-ncurses:mvwchgat window (get-currow self) (get-curcol self) (- (cl-ncurses:getmaxx window) 2) cl-ncurses:a_normal 3 nil)))
 
