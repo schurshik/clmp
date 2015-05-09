@@ -4,11 +4,15 @@
 
 (in-package :clmp)
 
+(defconstant +mplayer-bin+ "/usr/bin/mplayer")
+(defconstant +mpv-bin+ "/usr/bin/mpv")
+
 (setq frame-type 'wbox)
 (setq foreground cl-ncurses:color_white)
 (setq background cl-ncurses:color_black)
 (setq cursor-color cl-ncurses:color_yellow)
 (setq play-mode 'play-once)
+(setq player 'mplayer)
 
 (setq config-file (namestring (make-pathname :directory
 					     #+sbcl
@@ -44,7 +48,7 @@
 							 ((equal string-color "cyan") cl-ncurses:color_cyan)
 							 ((equal string-color "magenta") cl-ncurses:color_magenta)
 							 ((equal string-color "blue") cl-ncurses:color_blue)
-							 ((equal string-color "yellow") foreground cl-ncurses:color_yellow)
+							 ((equal string-color "yellow") cl-ncurses:color_yellow)
 							 (t (error (format nil "non valid string ~a in config file" line)))))))
 			  (cond ((equal lvalue "frame-type")
 				 (cond ((equal rvalue "wbox") (setq frame-type 'wbox))
@@ -63,6 +67,10 @@
 				       ((equal rvalue "play-reverse") (setq play-mode 'play-reverse))
 				       ((equal rvalue "play-random") (setq play-mode 'play-random))
 				       (t (error (format nil "non valid string ~a in config file" line)))))
+				((equal lvalue "player")
+				 (cond ((equal rvalue "mplayer") (setq player 'mplayer))
+				       ((equal rvalue "mpv") (setq player 'mpv))
+				       (t (error (format nil "non valid string ~a in config file" line)))))
 				(t (error (format nil "non valid string ~a in config file" line)))))
 		      (error (format nil "non valid string '~a' in config file" line))))))
 		(close in)))
@@ -79,7 +87,9 @@
 		    (format out "# cursor-color: black, white, green, red, cyan, magenta, blue, yellow~%")
 		    (format out "cursor-color = yellow~%")
 		    (format out "# play-mode: play-once, play-repeatedly, play-around, play-reverse, play-random~%")
-		    (format out "play-mode = play-once~%"))))
+		    (format out "play-mode = play-once~%")
+		    (format out "# player: mplayer, mpv~%")
+		    (format out "player = mplayer~%"))))
 
 (defun draw-frame (window)
   (cond ((eq frame-type 'wbox)

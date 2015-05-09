@@ -258,7 +258,7 @@
 		 (resize-term self))
 		((or (= key (char-int #\q)) (and (= key cl-ncurses:ERR) (get-isabort self)))
 		 (return))
-		((get-is-eof (get-player self))
+		((track-info-iseof (get-track (get-player self))) ;;(get-is-eof (get-player self))
 		 (play-file self))))))
 
 (defmethod create ((self clmp-iface) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?))
