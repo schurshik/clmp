@@ -571,7 +571,7 @@
 	((eq player 'mpv)
 	 #+sbcl
 	 (let ((s (make-string-output-stream)))
-	   (handler-case (sb-ext:run-program "/usr/bin/vendor_perl/exiftool" (list (get-play-filename self)) :output s)
+	   (handler-case (sb-ext:run-program "/usr/bin/exiftool" (list (get-play-filename self)) :output s)
 			 (error () (sb-ext:run-program "/usr/bin/vendor_perl/exiftool" (list (get-play-filename self)) :output s)))
 	   (let ((lines (cl-ppcre:split "(\\r+|\\n+)" (get-output-stream-string s)))
 		 (year "Unknown"))
