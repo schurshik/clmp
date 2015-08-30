@@ -9,7 +9,7 @@
 (asdf:defsystem :clmp
   :name "clmp"
   :author "Alexander Branitskiy <schurshick@yahoo.com>"
-  :version "1.1.0"
+  :version "1.3.0"
   :maintainer "Alexander Branitskiy <schurshick@yahoo.com>"
   :license "BSD"
   :description "Frontend interface to mplayer based on cl-ncurses."

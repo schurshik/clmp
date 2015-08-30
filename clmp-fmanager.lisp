@@ -4,7 +4,10 @@
 
 (in-package :clmp)
 
+#+(or sbcl clisp)
 (defconstant +home-dir+ (user-homedir-pathname))
+#+cmu
+(defconstant +home-dir+ (get-home-dir))
 
 (defconstant +startoffset-row+ 1)
 
@@ -83,12 +86,22 @@
   (not (null (cl-ppcre:scan "/$" test-dir))))
 
 (defmethod hightlight-line ((self clmp-fmanager))
-  (cl-ncurses:init-pair 2 cl-ncurses:color_black cursor-color)
+;  (cl-ncurses:init-pair 2 cl-ncurses:color_black cursor-color)
+  #+(or sbcl clisp)
+  (progn
+    (cl-ncurses:init-pair 2 cl-ncurses:color_black cursor-color)
+    (let ((window (get-window self)))
+      (cl-ncurses:mvwchgat window (get-currow self) (get-curcol self) (- (cl-ncurses:getmaxx window) 2) cl-ncurses:a_normal 2 nil)))
+  #+cmu
   (let ((window (get-window self)))
-    (cl-ncurses:mvwchgat window (get-currow self) (get-curcol self) (- (cl-ncurses:getmaxx window) 2) cl-ncurses:a_normal 2 nil)))
+    (cl-ncurses:init-pair 2 cursor-color background)
+    (cl-ncurses:wattron window (cl-ncurses:color-pair 2))
+    (cl-ncurses:mvwprintw (get-window self) (get-currow self) 0 "*")
+    (cl-ncurses:wattron window (cl-ncurses:color-pair 1))))
 
 (defmethod unhightlight-line ((self clmp-fmanager))
   (cl-ncurses:init-pair 3 cursor-color cl-ncurses:color_black)
+  #+(or sbcl clisp)  
   (let ((window (get-window self)))
     (cl-ncurses:mvwchgat window (get-currow self) (get-curcol self) (- (cl-ncurses:getmaxx window) 2) cl-ncurses:a_normal 3 nil)))
 
@@ -97,9 +110,9 @@
 
 (defmethod is-audio-file ((self clmp-fmanager) file warning)
   (let ((audio-file? #'(lambda (in-file)
-			 #+sbcl
+			 #+(or sbcl cmu)
 			 (let ((s (make-string-output-stream)))
-			   (sb-ext:run-program +file-bin+ (list in-file "--mime-type") :output s)
+			   (#+sbcl sb-ext:run-program #+cmu ext:run-program +file-bin+ (list in-file "--mime-type") :output s)
 			   (let ((result-string (string-right-trim '(#\newline) (get-output-stream-string s))))
 			     (if (not (null (search ": audio/" result-string)))
 				 t
@@ -126,6 +139,8 @@
   	 (lsdir
   	  #+sbcl
   	  (directory (make-pathname :name :wild :type :wild :directory dir-name :defaults (namestring +home-dir+)))
+  	  #+cmu
+  	  (directory (make-pathname :name :wild :type :wild :directory dir-name))
   	  #+clisp
   	  (append (directory (concatenate 'string dir-name "*/")) (directory (concatenate 'string dir-name "*")))))
     (let ((i 0))
@@ -159,9 +174,9 @@
     nil))
 
 (defmethod print-filetype ((self clmp-fmanager))
-  #+sbcl
+  #+(or sbcl cmu)
   (let ((s (make-string-output-stream)))
-    (sb-ext:run-program +file-bin+ (list "--brief" (namestring (nth (get-curind self) (get-lsdir self)))) :output s)
+    (#+sbcl sb-ext:run-program #+cmu ext:run-program +file-bin+ (list "--brief" (namestring (nth (get-curind self) (get-lsdir self)))) :output s)
     (let ((window (get-window self))
 	  (result-string (string-right-trim '(#\newline) (get-output-stream-string s))))
       (cl-ncurses:mvwprintw window (- (cl-ncurses:getmaxy window) 1) 0 result-string)))
@@ -181,7 +196,7 @@
 	  (if (< row (- (cl-ncurses:getmaxy (get-window self)) +endoffset-row+))
 	      (progn (let ((file-name (namestring file)))
 		       (if (is-dir? file-name)
-			   #+clisp
+			   #+(or clisp cmu)
 			   (if (and (= upper-index 0) (= row +startoffset-row+))
 			       (cl-ncurses:mvwprintw (get-window self) row column "../")
 			     (cl-ncurses:mvwprintw (get-window self) row column (dir-namestring file-name)))
@@ -193,7 +208,7 @@
 
 (defmethod change-dir ((self clmp-fmanager) &optional (dir +home-dir+))
   (let ((dir-name (namestring dir)))
-    (when (and #+sbcl(probe-file dir) #+clisp(not nil) (is-dir? dir-name))
+    (when (and #+sbcl (probe-file dir) #+(or clisp cmu) (not nil) (is-dir? dir-name))
       (set-curdir dir self)
       (set-curind 0 self)
       (set-currow +startoffset-row+ self)
@@ -202,17 +217,21 @@
 	  (set-lsdir
 	   #+sbcl
 	   (directory (make-pathname :name :wild :type :wild :directory dir-name :defaults (namestring +home-dir+)))
+	   #+cmu
+	   (directory (make-pathname :name :wild :type :wild :directory dir-name))
 	   #+clisp
 	   (append (directory (concatenate 'string dir-name "*/")) (directory (concatenate 'string dir-name "*")))
 	   self)
 	(let ((parent-dir (merge-pathnames (make-pathname :directory '(:relative :up))
 					   #+sbcl
 					   (make-pathname :directory dir-name)
-					   #+clisp
+					   #+(or clisp cmu)
 					   (pathname dir-name))))
 	  (set-lsdir (cons parent-dir
 			   #+sbcl
 			   (directory (make-pathname :name :wild :type :wild :directory dir-name :defaults (namestring +home-dir+)))
+			   #+cmu
+			   (directory (make-pathname :name :wild :type :wild :directory dir-name))
 			   #+clisp
 			   (append (directory (concatenate 'string dir-name "*/")) (directory (concatenate 'string dir-name "*"))))
 			   self))))))

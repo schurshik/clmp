@@ -29,6 +29,8 @@ SBCL_SCRIPT = \$(SBCL_PATH)/sbcl --script
 CLISP_PATH = /usr/bin
 CLISP = \$(CLISP_PATH)/clisp --verbose
 CLISP_SCRIPT = \$(CLISP_PATH)/clisp --quiet
+CMUCL_PATH = /usr/bin
+CMUCL = \$(CMUCL_PATH)/cmucl -batch -noinit -nositeinit
 # buildapp
 COMPILER = \$(BUILDAPP)
 # steel bank common lisp
@@ -37,6 +39,8 @@ COMPILER = \$(BUILDAPP)
 # clisp compiled with option --with-threads=POSIX_THREADS
 #COMPILER = \$(CLISP)
 #COMPILER = \$(CLISP_SCRIPT)
+# cmucl (lisp)
+#COMPILER = \$(CMUCL)
 EOF
 
 }
@@ -47,7 +51,9 @@ function create_makefile {
 # Makefile
 # Developer: Branitskiy Alexander <schurshick@yahoo.com>
 
-SHELL := /bin/bash
+BASH = /bin/bash
+
+SHELL := $(BASH)
 
 include Makefile.in
 
@@ -64,11 +70,11 @@ ECHO = $(shell which echo)
 
 define CREATE_SCRIPT_FILE
   $(info "comp = $(COMPILER)")
-  $(if $(filter $(COMPILER), $(CLISP) $(CLISP_SCRIPT)),
+  $(if $(filter $(COMPILER), $(CLISP) $(CLISP_SCRIPT) $(CMUCL)),
     $(shell echo '(load "$(ASDF_FILE)")' > $(OUT).lisp),
     $(shell echo -n "" > $(OUT).lisp))
   $(shell echo "(require :asdf)" >> "$(OUT).lisp")
-  $(if $(filter $(COMPILER), $(CLISP) $(CLISP_SCRIPT)),
+  $(if $(filter $(COMPILER), $(CLISP) $(CLISP_SCRIPT) $(CMUCL)),
     $(shell echo '(push #p"$(ALEXANDRIA_PATH)" asdf:*central-registry*)' >> "$(OUT).lisp") \
     $(shell echo "(asdf:operate 'asdf:load-op 'alexandria)" >> "$(OUT).lisp") \
     $(shell echo '(push #p"$(TRIVIAL_FEATURES_PATH)" asdf:*central-registry*)' >> "$(OUT).lisp") \
@@ -83,6 +89,10 @@ define CREATE_SCRIPT_FILE
     $(shell echo "(asdf:operate 'asdf:load-op 'sb-posix)" >> "$(OUT).lisp") \
     $(shell echo '(push #p"$(UFFI_PATH)" asdf:*central-registry*)' >> "$(OUT).lisp") \
     $(shell echo "(asdf:operate 'asdf:load-op 'uffi)" >> "$(OUT).lisp"))
+  $(if $(filter $(COMPILER), $(CMUCL)),
+    $(shell echo '(push #p"$(CLMPLIBS_PATH)" asdf:*central-registry*)' >> "$(OUT).lisp") \
+    $(shell echo "(asdf:operate 'asdf:load-op 'clmp-libs)" >> "$(OUT).lisp"),
+    $(shell echo -n "" >> "$(OUT).lisp"))
   $(shell echo '(push #p"$(CLNCURSES_PATH)" asdf:*central-registry*)' >> "$(OUT).lisp")
   $(shell echo "(asdf:operate 'asdf:load-op 'cl-ncurses)" >> "$(OUT).lisp")
   $(shell echo '(push #p"$(CLPPCRE_PATH)" asdf:*central-registry*)' >> "$(OUT).lisp")
@@ -154,6 +164,22 @@ else ifeq ($(COMPILER), $(CLISP_SCRIPT))
         -x '(run-program "$(MV)" :arguments (list "$(OUT).lisp" "$(OUT)") :output "/dev/null" :if-output-exists :append)' \
         -x '(run-program "$(CHMOD)" :arguments (list "+x" "$(OUT)") :output "/dev/null" :if-output-exists :append)' \
 	-x "(quit)"
+else ifeq ($(COMPILER), $(CMUCL_COMPILER))
+  $(eval $(call CREATE_SCRIPT_FILE))
+  OPT = -eval '(load "$(ASDF_FILE)")' \
+        -eval '(load "$(OUT).lisp")' \
+        -eval '(ext:run-program "$(ECHO)" (list "-e" "\\n(clmp:entry-point)" "\\n(quit)") :output "$(OUT).lisp" :if-output-exists :append)' \
+        -eval '(let* ((in (open "$(OUT).lisp" :if-does-not-exist nil)) \
+                      (content (make-string (file-length in)))) \
+                 (read-sequence content in) \
+                 (close in) \
+                 (let* ((dq (nth-value 0 (cl-ppcre:regex-replace "\"" content "\\\""))) \
+                        (s (nth-value 0 (cl-ppcre:regex-replace (format nil "(.+)~a" #\linefeed) dq (format nil "--eval \"\\1~a\" \\" #\linefeed)))))) \
+                   (with-open-file (out "$(OUT).lisp" :direction :output :if-exists :overwrite) \
+                     (format out "\#!$(BASH)~%~a\\~%~a" "$(COMPILER)" s))))' \
+        -eval '(ext:run-program "$(MV)" (list "$(OUT).lisp" "$(OUT)") :output "/dev/null" :if-output-exists :append)' \
+        -eval '(ext:run-program "$(CHMOD)" (list "+x" "$(OUT)") :output "/dev/null" :if-output-exists :append)' \
+	-eval "(quit)"
 else
   $(error Compiler is not set $(COMPILER))
 endif

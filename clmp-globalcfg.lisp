@@ -14,18 +14,29 @@
 (setq play-mode 'play-once)
 (setq player 'mplayer)
 
+#+cmu
+(defun get-home-dir ()
+  (let ((s (make-string-output-stream)))
+    (ext:run-program "printenv" (list "HOME") :output s)
+    (let ((ret-string (string-right-trim '(#\newline) (get-output-stream-string s))))
+      (when (null (cl-ppcre:scan "/$" ret-string))
+        (setq ret-string (concatenate 'string ret-string "/")))
+      (pathname ret-string))))
+
 (setq config-file (namestring (make-pathname :directory
 					     #+sbcl
 					     (namestring (user-homedir-pathname))
 					     #+clisp
 					     (user-homedir-pathname)
+                                             #+cmu
+                                             (namestring (get-home-dir))
 					     :name ".clmp" :type "cfg")))
 
 (defun read-config-file ()
   (if (probe-file 
        #+sbcl
        (make-pathname :directory config-file)
-       #+clisp
+       #+(or clisp cmucl)
        (pathname config-file))
       (let ((in (open (namestring config-file) :if-does-not-exist nil)))
 	(when (not (null in))
@@ -105,5 +116,5 @@
 ;  #+sbcl
 ;  (handler-case (sb-ext:run-program "/bin/echo" (list "-e" (format nil "\\e]12;~a\\a" cursor-color)) :output "/dev/stdout" :if-output-exists :append)
 ;    (error () (sb-ext:run-program "/usr/bin/echo" (list "-e" (format nil "\\e]12;~a\\a" cursor-color)) :output "/dev/stdout" :if-output-exists :append)))
-;  #+clisp
+;  #+(or clisp cmucl)
 ;  (ext:run-program "echo" :arguments (list "-e" (format nil "\\e]12;~a\\a" "red")) :output "/dev/stdout" :if-output-exists :append))

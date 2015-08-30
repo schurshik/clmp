@@ -50,7 +50,7 @@
 	   :initform nil
 	   :reader get-out-fd
 	   :writer set-out-fd)
-   #+sbcl
+   #+(or sbcl cmu)
    (mprocess :initarg :mprocess
 	     :initform 0
 	     :reader get-mprocess
@@ -60,6 +60,7 @@
 	    :initform nil
 	    :reader get-mthread
 	    :writer set-mthread)
+   #+(or sbcl clisp)
    (thread :initarg :thread
 	   :initform nil
 	   :reader get-thread
@@ -75,7 +76,12 @@
    (play-filename :initarg :play-filename
 		  :initform nil
 		  :reader get-play-filename
-		  :writer set-play-filename)))
+		  :writer set-play-filename)
+   #+cmu
+   (proc-handler :initarg :proc-handler
+                 :initform (make-instance 'clmp-libs:clmp-processhandler)
+                 :reader get-proc-handler
+                 :writer set-proc-handler)))
 
 (defmethod create-windows ((self clmp-player) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?))
   (when (and h? w? r? c?)
@@ -186,20 +192,22 @@
   (if (probe-file 
        #+sbcl
        (make-pathname :directory +in-fifo-path+)
-       #+clisp
+       #+(or clisp cmu)
        (pathname +in-fifo-path+))
       (delete-file +in-fifo-path+))
   #+sbcl
   (let ((mode (logior sb-posix:s-iwusr sb-posix:s-irusr)))
     (sb-posix:mkfifo +in-fifo-path+ mode))
   #+clisp
-  (ext:run-program "mkfifo" :arguments (list +in-fifo-path+ "--mode=0600")))
+  (ext:run-program "mkfifo" :arguments (list +in-fifo-path+ "--mode=0600"))
+  #+cmu
+  (ext:run-program "mkfifo" (list +in-fifo-path+ "--mode=0600")))
 
 (defmethod destroy-in-fifo ((self clmp-player))
   (if (probe-file
        #+sbcl
        (make-pathname :directory +in-fifo-path+)
-       #+clisp
+       #+(or clisp cmu)
        (pathname +in-fifo-path+))
       (delete-file +in-fifo-path+)))
 
@@ -207,7 +215,7 @@
   (if (probe-file
        #+sbcl
        (make-pathname :directory +out-fifo-path+)
-       #+clisp
+       #+(or clisp cmu)
        (pathname +out-fifo-path+))
       (delete-file +out-fifo-path+))
   #+sbcl
@@ -233,7 +241,11 @@
 	   (flags (cffi:foreign-funcall "fcntl" :int (posix:fileno fd) :int f-getfl :pointer (cffi:null-pointer) :int)))
       ;(cffi:foreign-funcall "fcntl" :int (posix:fileno fd) :int f-setfl :int (logior flags o-nonblock) :int)
       (set-out-fifo (ext:make-stream (posix:fileno fd) :direction :io) self)
-      (set-out-fd fd self))))
+      (set-out-fd fd self)))
+  #+cmu
+  (progn
+    (ext:run-program "mkfifo" (list +out-fifo-path+ "--mode=0600"))
+    (set-out-fifo (open +out-fifo-path+ :direction :io :if-exists :supersede) self)))
 
 (defmethod destroy-out-fifo ((self clmp-player))
   (close (get-out-fifo self))
@@ -242,7 +254,7 @@
   (if (probe-file
        #+sbcl
        (make-pathname :directory +out-fifo-path+)
-       #+clisp
+       #+(or clisp cmu)
        (pathname +out-fifo-path+))
       (delete-file +out-fifo-path+)))
 
@@ -261,10 +273,18 @@
 		   (t (error (format nil "non valid player"))))))
     (with-open-stream (istream (ext:make-pipe-input-stream cmd))
     		      (loop (not nil) (loop for line = (read-line istream nil nil) while line do (write-line line (get-out-fifo self))))))
+  #+cmu
+  (cond ((eq player 'mplayer)
+	 (setf ret-val (ext:run-program +mplayer-bin+ (list "-idle" "-slave" "-msglevel" "all=1:statusline=5:global=6" "-input" (format nil "file=~a" +in-fifo-path+) "2>/dev/null") :output (get-out-fifo self) :wait nil)))
+	((eq player 'mpv)
+	 (setf ret-val (ext:run-program +mpv-bin+ (list "--idle=yes" "--no-input-terminal" (format nil "--input-file=~a" +in-fifo-path+) "2>/dev/null") :output (get-out-fifo self) :wait nil)))
+	(t (error (format nil "non valid player"))))
   #+sbcl
   (sb-ext:quit :unix-status 0)
   #+clisp
-  (ext:quit 0))
+  (ext:quit 0)
+  #+cmu
+  (return-from exec-player ret-val))
 
 #+sbcl
 (defun signal-handle (sig info context)
@@ -286,33 +306,41 @@
 									    (get-iseof *g-clmp-player*)
 									    (sleep +alarm-time+))))))))
 
-#+sbcl
+#+(or sbcl cmu)
 (defmethod create-mprocess ((self clmp-player))
+  #+sbcl
   (let ((pid (sb-posix:fork)))
     (cond ((zerop pid) (exec-player self))
 	  ((plusp pid) (set-mprocess pid self))
 	  (t (error "can not create process")))
-    (sb-sys:enable-interrupt sb-posix:sigalrm #'signal-handle)))
+    (sb-sys:enable-interrupt sb-posix:sigalrm #'signal-handle))
+  #+cmu
+  (set-mprocess (exec-player self) self))
 
 #+clisp
 (defmethod create-mthread ((self clmp-player))
-  (set-mthread (bordeaux-threads:make-thread (lambda () (catch 'break-mthread (exec-player self)))) self)
+  (set-mthread (bordeaux-threads:make-thread (lambda () (catch 'break-mthread (progn (exec-player self))))) self)
   (create-sleep-thread))
 
-#+sbcl
+#+(or sbcl cmu)
 (defmethod destroy-mprocess ((self clmp-player))
   (quit-player self)
-  (sb-posix:waitpid (get-mprocess self) 0))
+  #+sbcl
+  (sb-posix:waitpid (get-mprocess self) 0)
+  #+cmu
+  (ext:process-kill (get-mprocess self) 2))
 
 #+clisp
 (defmethod destroy-mthread ((self clmp-player))
   (quit-player self)
   (bordeaux-threads:interrupt-thread (get-mthread self) (lambda () (throw 'break-mthread 'interrupted-mthread)))
+  ;#+cmu (green-threads:destroy-thread (get-mthread self))
   (bordeaux-threads:join-thread (get-mthread self))
   (bordeaux-threads:interrupt-thread *g-sleep-thread* (lambda () (throw 'break-sleep-thread 'interrupted-sleep-thread)))
+  ;#+cmu (green-threads:destroy-thread *g-sleep-thread*)
   (bordeaux-threads:join-thread *g-sleep-thread*))
 
-(defmethod create-thread ((self clmp-player))
+(defmethod #+(or sbcl clisp) create-thread #+cmu parse-output ((self clmp-player))
   ; http://www.mplayerhq.hu/DOCS/tech/slave.txt
   ; mpv.io/manual/master/
   (let ((func (lambda ()
@@ -322,96 +350,117 @@
 				       (if (not (null value))
 					   (aref value 0)
 					 nil)))))
-		  (loop (not nil)
-			(block iter
-			  (let ((string (read-line read-fifo)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^ANS_META_ARTIST='(.*)'")
-						((eq player 'mpv) "ANS_metadata/artist=(.*)$")
-						(t (error "non valid player"))))
-				   (artist (funcall get-value string regex)))
-			      (when (not (null artist))
-				(set-artist self artist)
-				(return-from iter)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^ANS_META_TITLE='(.*)'")
-						((eq player 'mpv) "ANS_metadata/title=(.*)$")
-						(t (error "non valid player"))))
-				   (title (funcall get-value string regex)))
-			      (when (not (null title))
-				(set-title self title)
-				(return-from iter)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^ANS_AUDIO_BITRATE='(.*) kbps'")
-						((eq player 'mpv) "ANS_packet-audio-bitrate=(.*)$")
-						(t (error "non valid player"))))
-				   (bitrate (funcall get-value string regex)))
-			      (when (not (null bitrate))
-				(set-bitrate self bitrate)
-				(return-from iter)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^ANS_META_GENRE='(.*)'")
-						((eq player 'mpv) "ANS_metadata/genre=(.*)$")
-						(t (error "non valid player"))))
-				   (genre (funcall get-value string regex)))
-			      (when (not (null genre))
-				(set-genre self genre)
-				(return-from iter)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^ANS_META_YEAR='(.*)'")
-						((eq player 'mpv) "ANS_metadata/year=(.*)$")
-						(t (error "non valid player"))))
-				   (year (funcall get-value string regex)))
-			      (when (not (null year))
-				(set-year self year)
-				(return-from iter)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^ANS_TIME_POSITION=(.*)$")
-						((eq player 'mpv) "ANS_time-pos=(.*)$")
-						(t (error "non valid player"))))
-				   (timepos (funcall get-value string regex)))
-			      (when (not (null timepos))
-				(set-timepos self timepos)
-				(render-left-window *g-clmp-player*)
-				(return-from iter)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^ANS_PERCENT_POSITION=(.*)$")
-						((eq player 'mpv) "ANS_percent-pos=(.*)$")
-						(t (error "non valid player"))))
-				   (percpos (funcall get-value string regex)))
-			      (when (not (null percpos))
-				(set-percpos self percpos)
-				(render-left-window *g-clmp-player*)
-				(return-from iter)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^ANS_LENGTH=(.*)$")
-						((eq player 'mpv) "ANS_length=(.*)$")
-						(t (error "non valid player"))))
-				   (timelen (funcall get-value string regex)))
-			      (when (not (null timelen))
-				(set-timelen self timelen)
-				(return-from iter)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^ANS_FILENAME='(.*)'")
-						((eq player 'mpv) "ANS_filename=(.*)$")
-						(t (error "non valid player"))))
-				   (filename (funcall get-value string regex)))
-			      (when (not (null filename))
-				(set-filename self filename)
-				(render-right-window *g-clmp-player*)
-				(return-from iter)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^ANS_volume=(.*)$")
-						((eq player 'mpv) "ANS_volume=(.*)$")
-						(t (error "non valid player"))))
-				   (volume (funcall get-value string regex)))
-			      (when (not (null volume))
-				(set-volume self volume)
-				(render-left-window *g-clmp-player*)
-				(return-from iter)))
-			    (let* ((regex (cond ((eq player 'mplayer) "^EOF code: ([0-9]+)")
-						((eq player 'mpv) "ANS_eof-reached=(.*)$")
-						(t (error "non valid player"))))
-				   (eof-code (funcall get-value string regex)))
-			      (when (and (not (null eof-code)) (or (and (eq player 'mplayer) (string= eof-code "1"))
-								   (and (eq player 'mpv) (string= eof-code "yes"))))
-				(set-iseof self t)
-				(return-from iter))))))))))
+                  (block loop-block
+		    (loop (not nil)
+			  (block iter
+			    (let ((string (read-line read-fifo)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^ANS_META_ARTIST='(.*)'")
+						  ((eq player 'mpv) "ANS_metadata/artist=(.*)$")
+						  (t (error "non valid player"))))
+				     (artist (funcall get-value string regex)))
+				;(let ((out_ (open "/tmp/test.out" :direction :io :if-exists :append)))
+				;  (format out_ "in loop: ~a~%" string)
+				;  (close out_))
+				(when (not (null artist))
+				  (set-artist self artist)
+				  (return-from iter)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^ANS_META_TITLE='(.*)'")
+						  ((eq player 'mpv) "ANS_metadata/title=(.*)$")
+						  (t (error "non valid player"))))
+				     (title (funcall get-value string regex)))
+				(when (not (null title))
+				  (set-title self title)
+				  (return-from iter)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^ANS_AUDIO_BITRATE='(.*) kbps'")
+						  ((eq player 'mpv) "ANS_packet-audio-bitrate=(.*)$")
+						  (t (error "non valid player"))))
+				     (bitrate (funcall get-value string regex)))
+				(when (not (null bitrate))
+				  (set-bitrate self bitrate)
+				  (return-from iter)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^ANS_META_GENRE='(.*)'")
+						  ((eq player 'mpv) "ANS_metadata/genre=(.*)$")
+						  (t (error "non valid player"))))
+				     (genre (funcall get-value string regex)))
+				(when (not (null genre))
+				  (set-genre self genre)
+				  (return-from iter)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^ANS_META_YEAR='(.*)'")
+						  ((eq player 'mpv) "ANS_metadata/year=(.*)$")
+						  (t (error "non valid player"))))
+				     (year (funcall get-value string regex)))
+				(when (not (null year))
+				  (set-year self year)
+				  (return-from iter)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^ANS_TIME_POSITION=(.*)$")
+						  ((eq player 'mpv) "ANS_time-pos=(.*)$")
+						  (t (error "non valid player"))))
+				     (timepos (funcall get-value string regex)))
+				(when (not (null timepos))
+				  (set-timepos self timepos)
+				  (render-left-window *g-clmp-player*)
+				  (return-from iter)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^ANS_PERCENT_POSITION=(.*)$")
+						  ((eq player 'mpv) "ANS_percent-pos=(.*)$")
+						  (t (error "non valid player"))))
+				     (percpos (funcall get-value string regex)))
+				(when (not (null percpos))
+				  (set-percpos self percpos)
+				  (render-left-window *g-clmp-player*)
+				  #+(or sbcl clisp)
+				  (return-from iter)
+				  #+cmu
+				  (return-from loop-block)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^ANS_LENGTH=(.*)$")
+						  ((eq player 'mpv) "ANS_length=(.*)$")
+						  (t (error "non valid player"))))
+				     (timelen (funcall get-value string regex)))
+				(when (not (null timelen))
+				  (set-timelen self timelen)
+				  (return-from iter)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^ANS_FILENAME='(.*)'")
+						  ((eq player 'mpv) "ANS_filename=(.*)$")
+						  (t (error "non valid player"))))
+				     (filename (funcall get-value string regex)))
+				(when (not (null filename))
+				  (set-filename self filename)
+				  (render-right-window *g-clmp-player*)
+				  (return-from iter)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^ANS_volume=(.*)$")
+						  ((eq player 'mpv) "ANS_volume=(.*)$")
+						  (t (error "non valid player"))))
+				     (volume (funcall get-value string regex)))
+				(when (not (null volume))
+				  (set-volume self volume)
+				  (render-left-window *g-clmp-player*)
+				  (return-from iter)))
+			      (let* ((regex (cond ((eq player 'mplayer) "^EOF code: ([0-9]+)")
+						  ((eq player 'mpv) "ANS_eof-reached=(.*)$")
+						  (t (error "non valid player"))))
+				     (eof-code (funcall get-value string regex)))
+				(when (and (not (null eof-code))
+					   (or (and (eq player 'mplayer) (string= eof-code "1"))
+					       (and (eq player 'mpv) (string= eof-code "yes"))))
+				  (set-iseof self t)
+				  (return-from iter)))
+			      #+cmu
+			      (let* ((regex (cond ((eq player 'mplayer) "^(quit)$")
+						  ((eq player 'mpv) "^(quit)$")
+						  (t (error "non valid player"))))
+				     (q (funcall get-value string regex)))
+				(when (not (null q))
+				  (return-from loop-block)))))))))))
     #+sbcl
     (set-thread (sb-thread:make-thread func) self)
     #+clisp
-    (set-thread (bordeaux-threads:make-thread (lambda () (catch 'break-thread (funcall func)))) self)))
+    (set-thread (bordeaux-threads:make-thread (lambda () (catch 'break-thread (funcall func)))) self)
+    ;(set-thread (mp:make-process func :name "mp") self)
+    ;(set-thread (with-green-thread (funcall func)) self)
+    ;(set-thread (green-threads:make-thread func) self)
+    #+cmu
+    (funcall func)))
 
+#+(or sbcl clisp)
 (defmethod destroy-thread ((self clmp-player))
   #+sbcl
   (progn
@@ -420,6 +469,7 @@
   #+clisp
   (progn
     (bordeaux-threads:interrupt-thread (get-thread self) (lambda () (throw 'break-thread 'interrupted-thread)))
+    ;(#+clisp bordeaux-threads:join-thread #+cmu green-threads:join-thread (get-thread self))))
     (bordeaux-threads:join-thread (get-thread self))))
 
 (defmethod create ((self clmp-player) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?))
@@ -428,15 +478,17 @@
     (create-windows self :height h :width w :row r :column c))
   (create-in-fifo self)
   (create-out-fifo self)
-  #+sbcl
+  #+(or sbcl cmu)
   (create-mprocess self)
   #+clisp
   (create-mthread self)
+  #+(or sbcl clisp)
   (create-thread self))
 
 (defmethod destroy ((self clmp-player))
+  #+(or sbcl clisp)
   (destroy-thread self)
-  #+sbcl
+  #+(or sbcl cmu)
   (destroy-mprocess self)
   #+clisp
   (destroy-mthread self)
@@ -472,7 +524,13 @@
   (init-track self)
   (setf (track-info-iseof (get-track self)) nil)
   #+sbcl
-  (sb-posix:alarm +alarm-time+))
+  (sb-posix:alarm +alarm-time+)
+  #+cmu
+  (clmp-libs:run-alarm (get-proc-handler self) (lambda () (when (eq (get-state *g-clmp-player*) 'play)
+                                                            (get-iseof *g-clmp-player*);)
+                                                            (get-timepos *g-clmp-player*)
+                                                            (get-percpos *g-clmp-player*)
+                                                            (parse-output *g-clmp-player*))) +alarm-time+))
 
 (defmethod play-pause-file ((self clmp-player))
   (cond ((eq (get-state self) 'stop) (return-from play-pause-file))
@@ -509,7 +567,8 @@
   (cond ((eq player 'mplayer)
 	 (printto-in-fifo self "get_meta_artist"))
 	((eq player 'mpv)
-	 (printto-in-fifo self "get_property metadata/artist"))
+	 ;(printto-in-fifo self "get_property metadata/artist")
+	 (printto-in-fifo self "show_text ANS_metadata/artist=${metadata/artist}"))
 	(t (error "non valid player"))))
 
 (defmethod set-artist ((self clmp-player) artist)
@@ -524,7 +583,8 @@
   (cond ((eq player 'mplayer)
 	 (printto-in-fifo self "get_meta_title"))
 	((eq player 'mpv)
-	 (printto-in-fifo self "get_property metadata/title"))
+	 ;(printto-in-fifo self "get_property metadata/title")
+	 (printto-in-fifo self "show_text ANS_metadata/title=${metadata/title}"))
 	(t (error "non valid player"))))
 
 (defmethod set-title ((self clmp-player) title)
@@ -539,7 +599,8 @@
     (cond ((eq player 'mplayer)
 	   (printto-in-fifo self "get_audio_bitrate"))
 	  ((eq player 'mpv)
-	   (printto-in-fifo self "get_property packet-audio-bitrate"))
+	   ;(printto-in-fifo self "get_property packet-audio-bitrate")
+	   (printto-in-fifo self "show_text ANS_packet-audio-bitrate=${packet-audio-bitrate}"))
 	  (t (error "non valid player"))))
 
 (defmethod set-bitrate ((self clmp-player) bitrate)
@@ -554,7 +615,8 @@
   (cond ((eq player 'mplayer)
 	 (printto-in-fifo self "get_meta_genre"))
 	((eq player 'mpv)
-	 (printto-in-fifo self "get_property metadata/genre"))
+	 ;(printto-in-fifo self "get_property metadata/genre")
+	 (printto-in-fifo self "show_text ANS_metadata/genre=${metadata/genre}"))
 	(t (error "non valid player"))))
 
 (defmethod set-genre ((self clmp-player) genre)
@@ -569,10 +631,10 @@
   (cond ((eq player 'mplayer)
 	 (printto-in-fifo self "get_meta_year"))
 	((eq player 'mpv)
-	 #+sbcl
+	 #+(or sbcl cmu)
 	 (let ((s (make-string-output-stream)))
-	   (handler-case (sb-ext:run-program "/usr/bin/exiftool" (list (get-play-filename self)) :output s)
-			 (error () (sb-ext:run-program "/usr/bin/vendor_perl/exiftool" (list (get-play-filename self)) :output s)))
+	   (handler-case (#+sbcl sb-ext:run-program #+cmu ext:run-program "/usr/bin/vendor_perl/exiftool" (list (get-play-filename self)) :output s)
+			 (error () (#+sbcl sb-ext:run-program #+cmu ext:run-program "/usr/bin/exiftool" (list (get-play-filename self)) :output s)))
 	   (let ((lines (cl-ppcre:split "(\\r+|\\n+)" (get-output-stream-string s)))
 		 (year "Unknown"))
 	     (block dolist-break
@@ -628,7 +690,8 @@
   (cond ((eq player 'mplayer)
 	 (printto-in-fifo self "get_time_pos"))
 	((eq player 'mpv)
-	 (printto-in-fifo self "get_property time-pos"))
+	 ;(printto-in-fifo self "get_property time-pos")
+	 (printto-in-fifo self "show_text ANS_time-pos=${time-pos}"))
 	(t (error "non valid player"))))
 
 (defmethod set-timepos ((self clmp-player) timepos)
@@ -642,7 +705,8 @@
   (cond ((eq player 'mplayer)
 	 (printto-in-fifo self "get_percent_pos"))
 	((eq player 'mpv)
-	 (printto-in-fifo self "get_property percent-pos"))
+	 ;(printto-in-fifo self "get_property percent-pos")
+	 (printto-in-fifo self "show_text ANS_percent-pos=${percent-pos}"))
 	(t (error "non valid player"))))
 
 (defmethod set-percpos ((self clmp-player) percpos)
@@ -656,7 +720,8 @@
   (cond ((eq player 'mplayer)
 	 (printto-in-fifo self "get_time_length"))
 	((eq player 'mpv)
-	 (printto-in-fifo self "get_property length"))
+	 ;(printto-in-fifo self "get_property length")
+	 (printto-in-fifo self "show_text ANS_length=${length}"))
 	(t (error "non valid player"))))
 
 (defmethod set-timelen ((self clmp-player) timelen)
@@ -671,7 +736,8 @@
   (cond ((eq player 'mplayer)
 	 (printto-in-fifo self "get_file_name"))
 	((eq player 'mpv)
-	 (printto-in-fifo self "get_property filename"))
+	 ;(printto-in-fifo self "get_property filename")
+	 (printto-in-fifo self "show_text ANS_filename=${filename}"))
 	(t (error "non valid player"))))
 
 (defmethod set-filename ((self clmp-player) filename)
@@ -685,8 +751,8 @@
 (defmethod inc-volume ((self clmp-player))
   (cond ((eq player 'mplayer)
 	 (printto-in-fifo self "step_property volume 6 +1"))
-	 ((eq player 'mpv)
-	  (printto-in-fifo self "add volume +6"))
+	((eq player 'mpv)
+	 (printto-in-fifo self "add volume +6"))
 	 (t (error "non valid player")))
   (get-volume self)
   (when (eq (get-state self) 'pause)
@@ -699,7 +765,7 @@
 (defmethod dec-volume ((self clmp-player))
   (cond ((eq player 'mplayer)
 	 (printto-in-fifo self "step_property volume 6 -1"))
-	 ((eq player 'mpv)
+	((eq player 'mpv)
 	  (printto-in-fifo self "add volume -6"))
 	 (t (error "non valid player")))
   (get-volume self)
@@ -711,7 +777,12 @@
 ;  (sb-ext:run-program "/usr/bin/amixer" (list "set" "PCM" "6-" "unmute")))
 
 (defmethod get-volume ((self clmp-player))
-  (printto-in-fifo self "get_property volume"))
+  (cond ((eq player 'mplayer)
+	 (printto-in-fifo self "get_property volume"))
+	((eq player 'mpv)
+	 ;(printto-in-fifo self "get_property volume")
+	 (printto-in-fifo self "show_text ANS_volume=${volume}"))
+	(t (error "non valid player"))))
 ;(defmethod get-volume ((self clmp-player))
 ;  (let ((s (make-string-output-stream)))
 ;    (run-shell-command "amixer get PCM | tail -1 | sed -E 's/.*\[([0-9]+)%\].*/\1/'" :output s)
@@ -726,7 +797,8 @@
 
 (defmethod get-iseof ((self clmp-player))
   (when (eq player 'mpv)
-    (printto-in-fifo self "get_property eof-reached")))
+    ;(printto-in-fifo self "get_property eof-reached")
+    (printto-in-fifo self "show_text ANS_eof-reached=${eof-reached}")))
 
 (defmethod set-iseof ((self clmp-player) iseof)
   (let ((track (get-track self))

@@ -224,6 +224,7 @@
   #+sbcl
   (sb-sys:enable-interrupt sb-posix:sigint #'(lambda (sig info context) (declare (ignore sig info context)) (set-isabort t *g-clmp-iface*)))
   (loop (not nil)
+        #+(or sbcl clisp)
 	(cl-ncurses:wtimeout (get-window self) +timeout-press-msec+)
 	(let ((key (cl-ncurses:getch)))
 	  (cond ((= key (char-int #\h))

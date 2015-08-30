@@ -13,7 +13,7 @@ cat <<EOF | patch ${clncurses_path}package.lisp
  (defpackage #:cl-ncurses
 +  #+sbcl
    (:use #:cl #:uffi)
-+  #+clisp
++  #+(or clisp cmu)
 +  (:use #:cl #:cffi-uffi-compat)
    (:export :SLK-LABEL :WINSTR :WINNSTR
             :HAS-COLORS :SETSCRREG
@@ -23,7 +23,7 @@ cat <<EOF | patch ${clncurses_path}package.lisp
  ;; (which SBCL barfs on), so we list /lib before /usr/lib.
  (defvar *ncurses-search-paths* 
 -  #-win32'("/usr/local/lib64/" "/usr/local/lib/" "/lib64/" "/lib/" "/usr/lib64/" "/usr/lib/")
-+  #-win32'("/usr/local/lib64/" "/usr/local/lib/" "/lib64/" "/lib/" "/usr/lib64/" "/usr/lib/" "/lib/x86_64-linux-gnu/")
++  #-win32'("/usr/local/lib64/" "/usr/local/lib/" "/lib64/" "/lib/" "/usr/lib64/" "/usr/lib/" "/lib/x86_64-linux-gnu/" "/lib/i386-linux-gnu/")
    #+win32'("/users/jacob/src/pdc31dll/"))
          
  
@@ -45,7 +45,7 @@ cat <<EOF | patch ${clncurses_path}cl-ncurses.asd
 -	   :depends-on (:uffi)
 +	   :depends-on
 +	   #+sbcl (:uffi)
-+	   #+clisp (:cffi-uffi-compat)
++	   #+(or clisp cmu) (:cffi-uffi-compat)
             :serial t
  	   :components ((:file "package")
  			(:file "add_wch" :depends-on ("package"))
@@ -56,44 +56,44 @@ cat <<EOF | patch ${clncurses_path}printw.lisp
  
  ; TODO: support a variable number of args
  ; C-prototype: int printw(const char *fmt, ...);
-+#-clisp
++#-(or clisp cmu)
  (def :int ((fmt :cstring))
       "printw")
-+#+clisp
++#+(or clisp cmu)
 +(def :int ((fmt :string))
 +     "printw")
  
  
  ; C-prototype: int wprintw(WINDOW *win, const char *fmt, ...);
-+#-clisp
++#-(or clisp cmu)
  (def :int ((win window-ptr)
             (fmt :cstring))
       "wprintw")
-+#+clisp
++#+(or clisp cmu)
 +(def :int ((win window-ptr)
 +           (fmt :string))
 +     "wprintw")
  
  ; C-prototype: int mvprintw(int y, int x, const char *fmt, ...);
-+#-clisp
++#-(or clisp cmu)
  (def :int ((y   :int)
  	   (x   :int)
  	   (fmt :cstring))
       "mvprintw")
-+#+clisp
++#+(or clisp cmu)
 +(def :int ((y   :int)
 +	   (x   :int)
 +	   (fmt :string))
 +     "mvprintw")
  
  ; C-prototype: int mvwprintw(WINDOW *win, int y, int x, const char *fmt, ...);
-+#-clisp
++#-(or clisp cmu)
  (def :int ((win window-ptr)
  	   (y   :int)
  	   (x   :int)
  	   (fmt :cstring))
       "mvwprintw")
-+#+clisp
++#+(or clisp cmu)
 +(def :int ((win window-ptr)
 +	   (y   :int)
 +	   (x   :int)

@@ -17,4 +17,6 @@
   #+sbcl
   (apply 'main sb-ext:*posix-argv*)
   #+clisp
-  (apply 'main ext:*args*))
+  (apply 'main ext:*args*)
+  #+cmu
+  (apply 'main extensions:*command-line-words*))
