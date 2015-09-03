@@ -18,6 +18,8 @@
 
 (defconstant +key-pageup+ 339)
 
+(defconstant +key-escape+ 27)
+
 (defconstant +timeout-press-msec+ 1000)
 
 (defvar *g-clmp-iface* nil)
@@ -45,6 +47,14 @@
 	(size-pos-x s) (+ (cl-ncurses:getbegx cl-ncurses:*stdscr*) 1))
   (return-from window-size-player s))
 
+(defun window-size-whelp ()
+  (setq s (make-size-pos))
+  (setf (size-pos-h s) (- (cl-ncurses:getmaxy cl-ncurses:*stdscr*) 9)
+	(size-pos-w s) (- (cl-ncurses:getmaxx cl-ncurses:*stdscr*) 2)
+	(size-pos-y s) (+ (cl-ncurses:getbegy cl-ncurses:*stdscr*) 1)
+	(size-pos-x s) (+ (cl-ncurses:getbegx cl-ncurses:*stdscr*) 1))
+  (return-from window-size-whelp s))
+
 (defclass clmp-iface ()
   ((window :initarg :window
 	   :initform nil
@@ -58,6 +68,14 @@
 	   :initform nil
 	   :reader get-player
 	   :writer set-player)
+   (whelp :initarg :whelp
+          :initform nil
+          :reader get-whelp
+          :writer set-whelp)
+   (onwhelp :initarg :onwhelp
+            :initform nil
+            :reader get-onwhelp
+            :writer set-onwhelp)
    (isabort :initarg :isabort
 	    :initform nil
 	    :reader get-isabort
@@ -108,6 +126,18 @@
 (defmethod destroy-player ((self clmp-iface))
   (destroy (get-player self)))
 
+(defmethod create-whelp ((self clmp-iface))
+  (set-whelp (make-instance 'clmp-whelp) self)
+  (let* ((s (window-size-whelp))
+	 (h (size-pos-h s))
+	 (w (size-pos-w s))
+	 (r (size-pos-y s))
+	 (c (size-pos-x s)))
+    (create (get-whelp self) :height h :width w :row r :column c)))
+
+(defmethod destroy-whelp ((self clmp-iface))
+  (destroy (get-whelp self)))
+
 (defmethod print-title ((self clmp-iface))
   (let* ((title "CLMP")
 	 (y (cl-ncurses:getbegy (get-window self)))
@@ -137,10 +167,20 @@
 	 (c (size-pos-x s)))
     (render (get-player self) :height h :width w :row r :column c)))
 
+(defmethod render-whelp ((self clmp-iface))
+  (let* ((s (window-size-whelp))
+	 (h (size-pos-h s))
+	 (w (size-pos-w s))
+	 (r (size-pos-y s))
+	 (c (size-pos-x s)))
+    (render (get-whelp self) :height h :width w :row r :column c)))
+
 (defmethod render ((self clmp-iface) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?))
   (unless (and h? w? r? c?)
     (render-window self)
-    (render-fmanager self)
+    (if (get-onwhelp self)
+        (render-whelp self)
+      (render-fmanager self))
     (render-player self)))
 
 (defmethod resize-term ((self clmp-iface))
@@ -220,11 +260,23 @@
 		  (play-file (find-next-prev-rand-audio-file fmanager cur-filename 'rand)))
 	     (start-playback player play-file))))))
 
+(defmethod show-whelp ((self clmp-iface))
+  (when (get-onwhelp self)
+    (return-from show-whelp))
+  (set-onwhelp t self)
+  (render-whelp self))
+
+(defmethod hide-whelp ((self clmp-iface))
+  (when (not (get-onwhelp self))
+    (return-from hide-whelp))
+  (set-onwhelp nil self)
+  (render-fmanager self))
+
 (defmethod process-keys ((self clmp-iface))
   #+sbcl
   (sb-sys:enable-interrupt sb-posix:sigint #'(lambda (sig info context) (declare (ignore sig info context)) (set-isabort t *g-clmp-iface*)))
   (loop (not nil)
-        #+(or sbcl clisp)
+	#+(or sbcl clisp)
 	(cl-ncurses:wtimeout (get-window self) +timeout-press-msec+)
 	(let ((key (cl-ncurses:getch)))
 	  (cond ((= key (char-int #\h))
@@ -255,6 +307,10 @@
 		 (change-timepos self '>))
 		((= key +key-left+)
 		 (change-timepos self '<))
+		((= key (char-int #\H))
+		 (show-whelp self))
+		((= key +key-escape+)
+		 (hide-whelp self))
 		((= key +key-resize+)
 		 (resize-term self))
 		((or (= key (char-int #\q)) (and (= key cl-ncurses:ERR) (get-isabort self)))
@@ -268,9 +324,11 @@
       (create-window self :height h :width w :row r :column c)
     (create-window self))
   (create-fmanager self)
-  (create-player self))
+  (create-player self)
+  (create-whelp self))
 
 (defmethod destroy ((self clmp-iface))
   (destroy-player self)
   (destroy-fmanager self)
+  (destroy-whelp self)
   (destroy-window self))

@@ -21,6 +21,7 @@ CFFI_PATH = ${packages_dir}/cffi/
 CLNCURSES_PATH = ${packages_dir}/cl-ncurses/
 CLPPCRE_PATH = ${packages_dir}/cl-ppcre/
 BORDEAUX_PATH = ${packages_dir}/bordeaux-threads/
+CLMPLIBS_PATH = clmp-libs/
 BUILDAPP_PATH = ${packages_dir}/buildapp
 BUILDAPP = \$(BUILDAPP_PATH)/buildapp
 SBCL_PATH = /usr/bin
@@ -149,7 +150,7 @@ else ifeq ($(COMPILER), $(CLISP))
                 (format out "\#!$(COMPILER)~%~a" content)))' \
         -x '(run-program "$(MV)" :arguments (list "$(OUT).fas" "$(OUT)") :output "/dev/null" :if-output-exists :append)' \
         -x '(run-program "$(CHMOD)" :arguments (list "+x" "$(OUT)") :output "/dev/null" :if-output-exists :append)' \
-	-x "(quit)"
+        -x "(quit)"
 else ifeq ($(COMPILER), $(CLISP_SCRIPT))
   $(eval $(call CREATE_SCRIPT_FILE))
   OPT = -x '(load "$(ASDF_FILE)")' \
@@ -163,8 +164,8 @@ else ifeq ($(COMPILER), $(CLISP_SCRIPT))
                 (format out "\#!$(COMPILER)~%~a" content)))' \
         -x '(run-program "$(MV)" :arguments (list "$(OUT).lisp" "$(OUT)") :output "/dev/null" :if-output-exists :append)' \
         -x '(run-program "$(CHMOD)" :arguments (list "+x" "$(OUT)") :output "/dev/null" :if-output-exists :append)' \
-	-x "(quit)"
-else ifeq ($(COMPILER), $(CMUCL_COMPILER))
+        -x "(quit)"
+else ifeq ($(COMPILER), $(CMUCL))
   $(eval $(call CREATE_SCRIPT_FILE))
   OPT = -eval '(load "$(ASDF_FILE)")' \
         -eval '(load "$(OUT).lisp")' \
@@ -173,13 +174,13 @@ else ifeq ($(COMPILER), $(CMUCL_COMPILER))
                       (content (make-string (file-length in)))) \
                  (read-sequence content in) \
                  (close in) \
-                 (let* ((dq (nth-value 0 (cl-ppcre:regex-replace "\"" content "\\\""))) \
-                        (s (nth-value 0 (cl-ppcre:regex-replace (format nil "(.+)~a" #\linefeed) dq (format nil "--eval \"\\1~a\" \\" #\linefeed)))))) \
+                 (let* ((dq (format nil "~a" (nth-value 0 (cl-ppcre:regex-replace-all "\"" content "\\\"")))) \
+                        (str (nth-value 0 (cl-ppcre:regex-replace-all (format nil "(.+)~a" \#\newline) dq (format nil "-eval \"\\1\" \\~a" \#\newline))))) \
                    (with-open-file (out "$(OUT).lisp" :direction :output :if-exists :overwrite) \
-                     (format out "\#!$(BASH)~%~a\\~%~a" "$(COMPILER)" s))))' \
+                     (format out "\#!$(BASH)~%~a \\~%~a" "$(COMPILER)" str))))' \
         -eval '(ext:run-program "$(MV)" (list "$(OUT).lisp" "$(OUT)") :output "/dev/null" :if-output-exists :append)' \
         -eval '(ext:run-program "$(CHMOD)" (list "+x" "$(OUT)") :output "/dev/null" :if-output-exists :append)' \
-	-eval "(quit)"
+        -eval "(quit)"
 else
   $(error Compiler is not set $(COMPILER))
 endif

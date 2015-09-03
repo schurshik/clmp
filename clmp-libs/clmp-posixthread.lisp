@@ -1,5 +1,5 @@
 ;; CLMP
-;; clmp-processhandler.lisp
+;; clmp-posixthread.lisp
 ;; Developer: Branitskiy Alexander <schurshick@yahoo.com>
 
 (in-package :clmp-libs)
