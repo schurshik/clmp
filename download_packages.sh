@@ -10,13 +10,17 @@ function download {
     wget --output-document ${packages_dir}/asdf.tar.gz http://common-lisp.net/project/asdf/asdf.tar.gz
     ([ -d packages/asdf ] || mkdir packages/asdf) && tar zxvf ${packages_dir}/asdf.tar.gz -C ${packages_dir}/asdf
     rm -f ${packages_dir}/asdf.tar.gz
-    wget --output-document ${packages_dir}/uffi.tar.gz http://files.b9.com/uffi/uffi-latest.tar.gz
-    tar zxvf ${packages_dir}/uffi.tar.gz -C ${packages_dir}
-    rm -f ${packages_dir}/uffi.tar.gz
+#    wget --output-document ${packages_dir}/uffi.tar.gz http://files.b9.com/uffi/uffi-latest.tar.gz
+#    tar zxvf ${packages_dir}/uffi.tar.gz -C ${packages_dir}
+#    rm -f ${packages_dir}/uffi.tar.gz
+    wget --output-document ${packages_dir}/uffi.tgz http://beta.quicklisp.org/archive/uffi/2015-09-23/uffi-20150923-git.tgz
+    tar zxvf ${packages_dir}/uffi.tgz -C ${packages_dir}
+    rm -f ${packages_dir}/uffi.tgz
     mv ${packages_dir}/uffi* ${packages_dir}/uffi
-    wget --output-document ${packages_dir}/alexandria.zip https://gitlab.common-lisp.net/alexandria/alexandria/repository/archive.zip
-    unzip ${packages_dir}/alexandria.zip -d ${packages_dir}
-    rm -f ${packages_dir}/alexandria.zip
+    #wget --output-document ${packages_dir}/alexandria.zip https://gitlab.common-lisp.net/alexandria/alexandria/repository/archive.zip
+    #unzip ${packages_dir}/alexandria.zip -d ${packages_dir}
+    #rm -f ${packages_dir}/alexandria.zip
+    git clone https://gitlab.common-lisp.net/alexandria/alexandria.git ${packages_dir}/alexandria
     mv ${packages_dir}/alexandria* ${packages_dir}/alexandria
     wget --output-document ${packages_dir}/trivial-features.tar.gz wget http://common-lisp.net/~loliveira/tarballs/trivial-features/trivial-features_0.6.tar.gz
     tar zxvf ${packages_dir}/trivial-features.tar.gz -C ${packages_dir}

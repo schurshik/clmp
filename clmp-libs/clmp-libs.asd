@@ -8,7 +8,7 @@
 (asdf:defsystem :clmp-libs
   :name "clmp-libs"
   :author "Alexander Branitskiy <schurshick@yahoo.com>"
-  :version "1.3.0"
+  :version "1.3.1"
   :maintainer "Alexander Branitskiy <schurshick@yahoo.com>"
   :license "BSD"
   :description "Auxiliary components to clmp."

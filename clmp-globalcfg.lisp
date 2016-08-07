@@ -6,6 +6,10 @@
 
 (defconstant +mplayer-bin+ "/usr/bin/mplayer")
 (defconstant +mpv-bin+ "/usr/bin/mpv")
+(defconstant +startoffset-row+ 1)
+(defconstant +startoffset-column+ 1)
+(defconstant +endoffset-row+ 1)
+(defconstant +endoffset-column+ 1)
 
 (setq frame-type 'wbox)
 (setq foreground cl-ncurses:color_white)
@@ -31,6 +35,8 @@
                                              #+cmu
                                              (namestring (get-home-dir))
 					     :name ".clmp" :type "cfg")))
+
+(setq radio-stations (make-hash-table :test 'equal))
 
 (defun read-config-file ()
   (if (probe-file 
@@ -82,6 +88,13 @@
 				 (cond ((equal rvalue "mplayer") (setq player 'mplayer))
 				       ((equal rvalue "mpv") (setq player 'mpv))
 				       (t (error (format nil "non valid string ~a in config file" line)))))
+				((not (null (cl-ppcre:scan "^radio-.+" lvalue)))
+				 (let* ((radio-name-val (nth-value 1 (cl-ppcre:scan-to-strings "^radio-(\\S+)$" lvalue)))
+					(radio-addr rvalue))
+				   (if (not (null radio-name-val))
+				       (let ((radio-name (aref radio-name-val 0)))
+					 (setf (gethash radio-name radio-stations) radio-addr))
+				     (t (error (format nil "non valid string ~a in config file" line))))))
 				(t (error (format nil "non valid string ~a in config file" line)))))
 		      (error (format nil "non valid string '~a' in config file" line))))))
 		(close in)))
@@ -100,7 +113,8 @@
 		    (format out "# play-mode: play-once, play-repeatedly, play-around, play-reverse, play-random~%")
 		    (format out "play-mode = play-once~%")
 		    (format out "# player: mplayer, mpv~%")
-		    (format out "player = mplayer~%"))))
+		    (format out "player = mplayer~%")
+		    (format out "# radio_station_name = radio_station_addr~%"))))
 
 (defun draw-frame (window)
   (cond ((eq frame-type 'wbox)

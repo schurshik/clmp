@@ -39,6 +39,14 @@
 	(size-pos-x s) (+ (cl-ncurses:getbegx cl-ncurses:*stdscr*) 1))
   (return-from window-size-fmanager s))
 
+(defun window-size-radio ()
+  (setq s (make-size-pos))
+  (setf (size-pos-h s) (- (cl-ncurses:getmaxy cl-ncurses:*stdscr*) 9)
+	(size-pos-w s) (- (cl-ncurses:getmaxx cl-ncurses:*stdscr*) 2)
+	(size-pos-y s) (+ (cl-ncurses:getbegy cl-ncurses:*stdscr*) 1)
+	(size-pos-x s) (+ (cl-ncurses:getbegx cl-ncurses:*stdscr*) 1))
+  (return-from window-size-radio s))
+
 (defun window-size-player ()
   (setq s (make-size-pos))
   (setf (size-pos-h s) 7
@@ -64,6 +72,10 @@
 	     :initform nil
 	     :reader get-fmanager
 	     :writer set-fmanager)
+   (radio :initarg :radio
+	  :initform nil
+	  :reader get-radio
+	  :writer set-radio)
    (player :initarg :player
 	   :initform nil
 	   :reader get-player
@@ -76,6 +88,10 @@
             :initform nil
             :reader get-onwhelp
             :writer set-onwhelp)
+   (mode :initarg :mode
+	 :initform 'fmanager
+	 :reader get-mode
+	 :writer set-mode)
    (isabort :initarg :isabort
 	    :initform nil
 	    :reader get-isabort
@@ -113,6 +129,18 @@
 
 (defmethod destroy-fmanager ((self clmp-iface))
   (destroy (get-fmanager self)))
+
+(defmethod create-radio ((self clmp-iface))
+  (set-radio (make-instance 'clmp-radio) self)
+  (let* ((s (window-size-radio))
+	 (h (size-pos-h s))
+	 (w (size-pos-w s))
+	 (r (size-pos-y s))
+	 (c (size-pos-x s)))
+    (create (get-radio self) :height h :width w :row r :column c)))
+
+(defmethod destroy-radio ((self clmp-iface))
+  (destroy (get-radio self)))
 
 (defmethod create-player ((self clmp-iface))
   (set-player (make-instance 'clmp-player) self)
@@ -159,6 +187,14 @@
 	 (c (size-pos-x s)))
     (render (get-fmanager self) :height h :width w :row r :column c)))
 
+(defmethod render-radio ((self clmp-iface))
+  (let* ((s (window-size-radio))
+	 (h (size-pos-h s))
+	 (w (size-pos-w s))
+	 (r (size-pos-y s))
+	 (c (size-pos-x s)))
+    (render (get-radio self) :height h :width w :row r :column c)))
+
 (defmethod render-player ((self clmp-iface))
   (let* ((s (window-size-player))
 	 (h (size-pos-h s))
@@ -180,42 +216,63 @@
     (render-window self)
     (if (get-onwhelp self)
         (render-whelp self)
-      (render-fmanager self))
+      (cond ((eq (get-mode self) 'fmanager)
+	     (render-fmanager self))
+	    ((eq (get-mode self) 'radio)
+	     (render-radio self))))
     (render-player self)))
 
 (defmethod resize-term ((self clmp-iface))
   (render self))
 
 (defmethod press-down ((self clmp-iface))
-  (press-down (get-fmanager self)))
+  (cond ((eq (get-mode self) 'fmanager)
+	 (press-down (get-fmanager self)))
+	((eq (get-mode self) 'radio)
+	 (press-down (get-radio self)))))
 
 (defmethod press-up ((self clmp-iface))
-  (press-up (get-fmanager self)))
+  (cond ((eq (get-mode self) 'fmanager)
+	 (press-up (get-fmanager self)))
+	((eq (get-mode self) 'radio)
+	 (press-up (get-radio self)))))
 
 (defmethod press-enter ((self clmp-iface))
-  (let* ((fmanager (get-fmanager self))
-	 (dir (namestring (truename (nth (get-curind fmanager) (get-lsdir fmanager))))))
-    (if (is-dir? dir)
-	(gointo-curdir fmanager)
-      (let ((file dir))
-	(when (is-audio-file fmanager file t)
-	    (start-playback (get-player self) file))))))
+  (cond ((eq (get-mode self) 'fmanager)
+	 (let* ((fmanager (get-fmanager self))
+		(dir (namestring (truename (nth (get-curind fmanager) (get-lsdir fmanager))))))
+	   (if (is-dir? dir)
+	       (gointo-curdir fmanager)
+	     (let ((file dir))
+	       (when (is-audio-file fmanager file t)
+		 (start-playback (get-player self) file))))))
+	((eq (get-mode self) 'radio)
+	 (start-stream (get-player self) (radio-station-addr (aref (get-radarr (get-radio self)) (get-curind (get-radio self))))))))
 
 (defmethod up-dir ((self clmp-iface))
-  (let ((fmanager (get-fmanager self)))
-    (gointo-pardir fmanager)))
+  (when (eq (get-mode self) 'fmanager)
+    (let ((fmanager (get-fmanager self)))
+      (gointo-pardir fmanager))))
 
 (defmethod press-pagedown ((self clmp-iface))
-  (press-pagedown (get-fmanager self)))
+  (cond ((eq (get-mode self) 'fmanager)
+	 (press-pagedown (get-fmanager self)))
+	((eq (get-mode self) 'radio)
+	 (press-pagedown (get-radio self)))))
 
 (defmethod press-pageup ((self clmp-iface))
-  (press-pageup (get-fmanager self)))
+  (cond ((eq (get-mode self) 'fmanager)
+	 (press-pageup (get-fmanager self)))
+	((eq (get-mode self) 'radio)
+	 (press-pageup (get-radio self)))))
 
 (defmethod play-pause ((self clmp-iface))
-  (play-pause-file (get-player self)))
+  (when (eq (get-mode self) 'fmanager)
+    (play-pause-file (get-player self))))
 
 (defmethod stop ((self clmp-iface))
-  (stop-file (get-player self)))
+  (when (eq (get-mode self) 'fmanager)
+    (stop-file (get-player self))))
 
 (defmethod change-volume ((self clmp-iface) param)
   (when (eq param '+)
@@ -225,11 +282,12 @@
     (dec-volume (get-player self))))
 
 (defmethod change-timepos ((self clmp-iface) param)
-  (when (eq param '>)
-    (inc-timepos (get-player self))
-    (return-from change-timepos))
-  (when (eq param '<)
-    (dec-timepos (get-player self))))
+  (when (eq (get-mode self) 'fmanager)
+    (when (eq param '>)
+      (inc-timepos (get-player self))
+      (return-from change-timepos))
+    (when (eq param '<)
+      (dec-timepos (get-player self)))))
 
 (defmethod prev-press-enter ((self clmp-iface))
   (press-up self)
@@ -240,25 +298,38 @@
   (press-enter self))
 
 (defmethod play-file ((self clmp-iface))
-  (let* ((player (get-player self))
-	 (cur-filename (get-play-filename player)))
-    (cond ((eq play-mode 'play-once)
-	   (return-from play-file))
-	  ((eq play-mode 'play-repeatedly)
-	   (let ((play-file cur-filename))
-	     (start-playback player play-file)))
-	  ((eq play-mode 'play-around)
-	   (let* ((fmanager (get-fmanager self))
-		  (play-file (find-next-prev-rand-audio-file fmanager cur-filename 'next)))
-	     (start-playback player play-file)))
-	  ((eq play-mode 'play-reverse)
-	   (let* ((fmanager (get-fmanager self))
-		  (play-file (find-next-prev-rand-audio-file fmanager cur-filename 'prev)))
-	     (start-playback player play-file)))
-	  ((eq play-mode 'play-random)
-	   (let* ((fmanager (get-fmanager self))
-		  (play-file (find-next-prev-rand-audio-file fmanager cur-filename 'rand)))
-	     (start-playback player play-file))))))
+  (when (eq (get-mode self) 'fmanager)
+    (let* ((player (get-player self))
+	   (cur-filename (get-play-filename player)))
+      (cond ((eq play-mode 'play-once)
+	     (return-from play-file))
+	    ((eq play-mode 'play-repeatedly)
+	     (let ((play-file cur-filename))
+	       (start-playback player play-file)))
+	    ((eq play-mode 'play-around)
+	     (let* ((fmanager (get-fmanager self))
+		    (play-file (find-next-prev-rand-audio-file fmanager cur-filename 'next)))
+	       (start-playback player play-file)))
+	    ((eq play-mode 'play-reverse)
+	     (let* ((fmanager (get-fmanager self))
+		    (play-file (find-next-prev-rand-audio-file fmanager cur-filename 'prev)))
+	       (start-playback player play-file)))
+	    ((eq play-mode 'play-random)
+	     (let* ((fmanager (get-fmanager self))
+		    (play-file (find-next-prev-rand-audio-file fmanager cur-filename 'rand)))
+	       (start-playback player play-file)))))))
+
+(defmethod show-fmanager ((self clmp-iface))
+  (when (eq (get-mode self) 'fmanager)
+    (return-from show-fmanager))
+  (set-mode 'fmanager self)
+  (render-fmanager self))
+
+(defmethod show-radio ((self clmp-iface))
+  (when (eq (get-mode self) 'radio)
+    (return-from show-radio))
+  (set-mode 'radio self)
+  (render-radio self))
 
 (defmethod show-whelp ((self clmp-iface))
   (when (get-onwhelp self)
@@ -270,7 +341,10 @@
   (when (not (get-onwhelp self))
     (return-from hide-whelp))
   (set-onwhelp nil self)
-  (render-fmanager self))
+  (cond ((eq (get-mode self) 'fmanager)
+	 (render-fmanager self))
+	((eq (get-mode self) 'radio)
+	 (render-radio self))))
 
 (defmethod process-keys ((self clmp-iface))
   #+sbcl
@@ -307,6 +381,10 @@
 		 (change-timepos self '>))
 		((= key +key-left+)
 		 (change-timepos self '<))
+		((= key (char-int #\F))
+		 (show-fmanager self))
+		((= key (char-int #\R))
+		 (show-radio self))
 		((= key (char-int #\H))
 		 (show-whelp self))
 		((= key +key-escape+)
@@ -324,11 +402,13 @@
       (create-window self :height h :width w :row r :column c)
     (create-window self))
   (create-fmanager self)
+  (create-radio self)
   (create-player self)
   (create-whelp self))
 
 (defmethod destroy ((self clmp-iface))
   (destroy-player self)
+  (destroy-radio self)
   (destroy-fmanager self)
   (destroy-whelp self)
   (destroy-window self))

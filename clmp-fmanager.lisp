@@ -9,14 +9,6 @@
 #+cmu
 (defconstant +home-dir+ (get-home-dir))
 
-(defconstant +startoffset-row+ 1)
-
-(defconstant +startoffset-column+ 1)
-
-(defconstant +endoffset-row+ 1)
-
-(defconstant +endoffset-column+ 1)
-
 (defconstant +file-bin+ "/usr/bin/file")
 
 (defclass clmp-fmanager ()

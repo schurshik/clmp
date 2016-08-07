@@ -532,6 +532,9 @@
                                                             (get-percpos *g-clmp-player*)
                                                             (parse-output *g-clmp-player*))) +alarm-time+))
 
+(defmethod start-stream ((self clmp-player) stream)
+  (load-stream self stream))
+
 (defmethod play-pause-file ((self clmp-player))
   (cond ((eq (get-state self) 'stop) (return-from play-pause-file))
 	((eq (get-state self) 'play) (set-state 'pause self))
@@ -557,6 +560,13 @@
 	 (printto-in-fifo self (format nil "loadfile '~a'" file)))
 	((eq player 'mpv)
 	 (printto-in-fifo self (format nil "loadfile ~a" file)))
+	(t (error "non valid player"))))
+
+(defmethod load-stream ((self clmp-player) stream)
+  (cond ((eq player 'mplayer)
+	 (printto-in-fifo self (format nil "loadfile '~a'" stream)))
+	((eq player 'mpv)
+	 (printto-in-fifo self (format nil "loadfile ~a" stream)))
 	(t (error "non valid player"))))
 
 (defmethod quit-player ((self clmp-player))
