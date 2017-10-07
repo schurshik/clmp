@@ -2,7 +2,7 @@
 
 # CLMP
 # download_packages.sh
-# Developer: Branitskiy Alexander <schurshick@yahoo.com>
+# Developer: Branitskiy Alexander <schurshik@yahoo.com>
 
 packages_dir=packages
 

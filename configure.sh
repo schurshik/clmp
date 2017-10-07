@@ -2,14 +2,14 @@
 
 # CLMP
 # configure.sh
-# Developer: Branitskiy Alexander <schurshick@yahoo.com>
+# Developer: Branitskiy Alexander <schurshik@yahoo.com>
 
 function create_makefile_in {
     packages_dir=$1
     cat <<EOF > Makefile.in
 # CLMP
 # Makefile.in
-# Developer: Branitskiy Alexander <schurshick@yahoo.com>
+# Developer: Branitskiy Alexander <schurshik@yahoo.com>
 
 ASDF_FILE = ${packages_dir}/asdf/build/asdf.lisp
 SB_POSIX_PATH = /usr/share/sbcl-source/contrib/sb-posix/
@@ -50,7 +50,7 @@ function create_makefile {
     cat <<'EOF' > Makefile
 # CLMP
 # Makefile
-# Developer: Branitskiy Alexander <schurshick@yahoo.com>
+# Developer: Branitskiy Alexander <schurshik@yahoo.com>
 
 BASH = /bin/bash
 

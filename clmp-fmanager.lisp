@@ -1,6 +1,6 @@
 ;; CLMP
 ;; clmp-fmanager.lisp
-;; Developer: Branitskiy Alexander <schurshick@yahoo.com>
+;; Developer: Branitskiy Alexander <schurshik@yahoo.com>
 
 (in-package :clmp)
 

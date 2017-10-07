@@ -1,6 +1,6 @@
 ;; CLMP
 ;; clmp.asd
-;; Developer: Branitskiy Alexander <schurshick@yahoo.com>
+;; Developer: Branitskiy Alexander <schurshik@yahoo.com>
 
 (defpackage :clmp
   ; (:use :common-lisp :uiop)
@@ -8,9 +8,9 @@
   (:export #:main #:entry-point))
 (asdf:defsystem :clmp
   :name "clmp"
-  :author "Alexander Branitskiy <schurshick@yahoo.com>"
+  :author "Alexander Branitskiy <schurshik@yahoo.com>"
   :version "1.3.1"
-  :maintainer "Alexander Branitskiy <schurshick@yahoo.com>"
+  :maintainer "Alexander Branitskiy <schurshik@yahoo.com>"
   :license "BSD"
   :description "Frontend interface to mplayer based on cl-ncurses."
   :long-description "Frontend interface to mplayer based on cl-ncurses."

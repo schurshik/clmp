@@ -2,7 +2,7 @@
 
 # CLMP
 # apply_patch.sh
-# Developer: Branitskiy Alexander <schurshick@yahoo.com>
+# Developer: Branitskiy Alexander <schurshik@yahoo.com>
 
 clncurses_path=`cat Makefile.in | egrep "^[ \t]*CLNCURSES_PATH" | sed -e "s/.*=[ \t]*\([^ \t]*\)$/\1/"`
 
@@ -23,7 +23,7 @@ cat <<EOF | patch ${clncurses_path}package.lisp
  ;; (which SBCL barfs on), so we list /lib before /usr/lib.
  (defvar *ncurses-search-paths* 
 -  #-win32'("/usr/local/lib64/" "/usr/local/lib/" "/lib64/" "/lib/" "/usr/lib64/" "/usr/lib/")
-+  #-win32'("/usr/local/lib64/" "/usr/local/lib/" "/lib64/" "/lib/" "/usr/lib64/" "/usr/lib/" "/lib/x86_64-linux-gnu/" "/lib/i386-linux-gnu/")
++  #-win32'("/usr/local/lib64/" "/usr/local/lib/" "/lib64/" "/lib/" "/usr/lib64/" "/usr/lib/" "/lib/x86_64-linux-gnu/" "/usr/lib/x86_64-linux-gnu/" "/lib/i386-linux-gnu/")
    #+win32'("/users/jacob/src/pdc31dll/"))
          
  
