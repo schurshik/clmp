@@ -38,10 +38,11 @@ function download {
     tar zxvf ${packages_dir}/cl-ncurses.tgz -C ${packages_dir}
     rm -f ${packages_dir}/cl-ncurses.tgz
     mv ${packages_dir}/cl-ncurses* ${packages_dir}/cl-ncurses
-    wget --output-document ${packages_dir}/cl-ppcre.tar.gz wget http://weitz.de/files/cl-ppcre.tar.gz
-    tar zxvf ${packages_dir}/cl-ppcre.tar.gz -C ${packages_dir}
-    rm -f ${packages_dir}/cl-ppcre.tar.gz
-    mv ${packages_dir}/cl-ppcre* ${packages_dir}/cl-ppcre
+#    wget --output-document ${packages_dir}/cl-ppcre.tar.gz wget http://weitz.de/files/cl-ppcre.tar.gz
+#    tar zxvf ${packages_dir}/cl-ppcre.tar.gz -C ${packages_dir}
+#    rm -f ${packages_dir}/cl-ppcre.tar.gz
+#    mv ${packages_dir}/cl-ppcre* ${packages_dir}/cl-ppcre
+    git clone https://github.com/edicl/cl-ppcre.git ${packages_dir}/cl-ppcre
     wget --output-document ${packages_dir}/bordeaux-threads.tar.gz https://common-lisp.net/project/bordeaux-threads/releases/bordeaux-threads.tar.gz
     tar zxvf ${packages_dir}/bordeaux-threads.tar.gz -C ${packages_dir}
     rm -f ${packages_dir}/bordeaux-threads.tar.gz

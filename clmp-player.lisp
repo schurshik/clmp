@@ -674,7 +674,8 @@
 
 (defmethod inc-timepos ((self clmp-player))
   (cond ((eq player 'mplayer)
-	 (printto-in-fifo self "step_property time_pos 5 +1"))
+	 ;(printto-in-fifo self "step_property time_pos 5 +1")
+	 (printto-in-fifo self "step_property time_pos +5"))
 	((eq player 'mpv)
 	 (printto-in-fifo self "add time-pos +5"))
 	(t (error "non valid player")))
@@ -686,7 +687,8 @@
 
 (defmethod dec-timepos ((self clmp-player))
   (cond ((eq player 'mplayer)
-	 (printto-in-fifo self "step_property time_pos 5 -1"))
+	 ;(printto-in-fifo self "step_property time_pos 5 -1")
+	 (printto-in-fifo self "step_property time_pos -5"))
 	((eq player 'mpv)
 	 (printto-in-fifo self "add time-pos -5"))
 	(t (error "non valid player")))
@@ -760,7 +762,8 @@
 
 (defmethod inc-volume ((self clmp-player))
   (cond ((eq player 'mplayer)
-	 (printto-in-fifo self "step_property volume 6 +1"))
+	 ;(printto-in-fifo self "step_property volume 6 +1")
+	 (printto-in-fifo self "step_property volume +6"))
 	((eq player 'mpv)
 	 (printto-in-fifo self "add volume +6"))
 	 (t (error "non valid player")))
@@ -774,7 +777,8 @@
 
 (defmethod dec-volume ((self clmp-player))
   (cond ((eq player 'mplayer)
-	 (printto-in-fifo self "step_property volume 6 -1"))
+	 ;(printto-in-fifo self "step_property volume 6 -1")
+	 (printto-in-fifo self "step_property volume -6"))
 	((eq player 'mpv)
 	  (printto-in-fifo self "add volume -6"))
 	 (t (error "non valid player")))
