@@ -100,32 +100,32 @@
 (defmethod print-curdir ((self clmp-fmanager))
   (cl-ncurses:mvwprintw (get-window self) 0 0 (namestring (get-curdir self))))
 
-(defmethod is-audio-file ((self clmp-fmanager) file warning)
-  (let ((audio-file? #'(lambda (in-file)
+(defmethod is-audio-video-file ((self clmp-fmanager) file warning)
+  (let ((audio-video-file? #'(lambda (in-file)
 			 #+(or sbcl cmu)
 			 (let ((s (make-string-output-stream)))
 			   (#+sbcl sb-ext:run-program #+cmu ext:run-program +file-bin+ (list in-file "--mime-type") :output s)
 			   (let ((result-string (string-right-trim '(#\newline) (get-output-stream-string s))))
-			     (if (not (null (search ": audio/" result-string)))
+			     (if (not (and (null (search ": audio/" result-string)) (null (search ": video/" result-string))))
 				 t
 			       nil)))
 			 #+clisp
 			 (with-open-stream (stream (ext:run-program +file-bin+ :arguments (list in-file "--mime-type") :output :stream))
 					   (let ((result-string (string-right-trim '(#\newline) (read-line stream nil nil))))
-					     (if (not (null (search ": audio/" result-string)))
+					     (if (not (and (null (search ": audio/" result-string)) (null (search ": video/" result-string))))
 						 t
 					       nil))))))
-    (if (funcall audio-file? file)
+    (if (funcall audio-video-file? file)
 	t
       (progn (unless (not warning)
 	       (let ((window (get-window self)))
-		  (cl-ncurses:mvwprintw window (- (cl-ncurses:getmaxy window) 1) 0 "this file is not audio")
+		  (cl-ncurses:mvwprintw window (- (cl-ncurses:getmaxy window) 1) 0 "this file is not audio and not video")
 		  (cl-ncurses:wrefresh window)))
 	     nil))))
 
-(defmethod find-next-prev-rand-audio-file ((self clmp-fmanager) cur-full-filename find-where)
+(defmethod find-next-prev-rand-audio-video-file ((self clmp-fmanager) cur-full-filename find-where)
   (when (not (or (eq find-where 'next) (eq find-where 'prev) (eq find-where 'rand)))
-    (return-from find-next-prev-rand-audio-file nil))
+    (return-from find-next-prev-rand-audio-video-file nil))
   (let* ((dir-name (directory-namestring (pathname cur-full-filename)))
   	 (cur-filename (file-namestring (pathname cur-full-filename)))
   	 (lsdir
@@ -161,8 +161,8 @@
 			  (append (reverse (subseq lsdir 0 i)) (reverse (subseq lsdir (+ i 1))))
 			(funcall newlst lsdir (funcall randlst (list-length lsdir))))))
   	(let ((full-filename (namestring file)))
-  	  (when (is-audio-file self full-filename nil)
-  	    (return-from find-next-prev-rand-audio-file full-filename))))))
+  	  (when (is-audio-video-file self full-filename nil)
+  	    (return-from find-next-prev-rand-audio-video-file full-filename))))))
     nil))
 
 (defmethod print-filetype ((self clmp-fmanager))
