@@ -17,6 +17,7 @@
 (setq cursor-color cl-ncurses:color_yellow)
 (setq play-mode 'play-once)
 (setq player 'mplayer)
+(setq file-manager 'one-panel)
 
 #+cmu
 (defun get-home-dir ()
@@ -88,6 +89,11 @@
 				 (cond ((equal rvalue "mplayer") (setq player 'mplayer))
 				       ((equal rvalue "mpv") (setq player 'mpv))
 				       (t (error (format nil "non valid string ~a in config file" line)))))
+                ((equal lvalue "file-manager")
+				 (cond ((equal rvalue "one-panel") (setq file-manager 'one-panel))
+				       ((equal rvalue "two-vertical-panels") (setq file-manager 'two-vertical-panels))
+                       ((equal rvalue "two-horizontal-panels") (setq file-manager 'two-horizontal-panels))
+				       (t (error (format nil "non valid string ~a in config file" line)))))
 				((not (null (cl-ppcre:scan "^radio-.+" lvalue)))
 				 (let* ((radio-name-val (nth-value 1 (cl-ppcre:scan-to-strings "^radio-(\\S+)$" lvalue)))
 					(radio-addr rvalue))
@@ -114,6 +120,8 @@
 		    (format out "play-mode = play-once~%")
 		    (format out "# player: mplayer, mpv~%")
 		    (format out "player = mplayer~%")
+            (format out "# file-manager: one-panel, two-vertical-panels, two-horizontal-panels~%")
+		    (format out "file-manager = one-panel~%")
 		    (format out "# radio_station_name = radio_station_addr~%"))))
 
 (defun draw-frame (window)

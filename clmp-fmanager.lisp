@@ -37,24 +37,24 @@
 	   :reader get-curcol
 	   :writer set-curcol)))
 
-(defmethod create-window ((self clmp-fmanager) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?))
+(defmethod create-window ((self clmp-fmanager) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?) ((:line l) t l?))
   (if (and h? w? r? c?)
       (set-window (cl-ncurses:newwin h w r c) self))
   (colorize-window (get-window self))
   (change-dir self)
-  (render-window self :height h :width w :row r :column c))
+  (render-window self :height h :width w :row r :column c :line l))
 
 (defmethod destroy-window ((self clmp-fmanager))
   (cl-ncurses:delwin (get-window self)))
 
-(defmethod create ((self clmp-fmanager) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?))
+(defmethod create ((self clmp-fmanager) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?) ((:line l) t l?))
   (if (and h? w? r? c?)
-      (create-window self :height h :width w :row r :column c)))
+      (create-window self :height h :width w :row r :column c :line l)))
 
 (defmethod destroy ((self clmp-fmanager))
   (destroy-window self))
 
-(defmethod render-window ((self clmp-fmanager) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?))
+(defmethod render-window ((self clmp-fmanager) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?) ((:line l) t l?))
   (cl-ncurses:wclear (get-window self))
   (when (and h? w? r? c?)
     (cl-ncurses:wresize (get-window self) h w)
@@ -63,13 +63,14 @@
   (print-curdir self)
   (print-filetype self)
   (print-lsdir self)
-  (hightlight-line self)
+  (when (or (not l?) l)
+    (hightlight-line self))
   (cl-ncurses:wrefresh (get-window self)))
 
-(defmethod render ((self clmp-fmanager) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?))
+(defmethod render ((self clmp-fmanager) &key ((:height h) 0 h?) ((:width w) 0 w?) ((:row r) 0 r?) ((:column c) 0 c?) ((:line l) t l?))
   (if (and h? w? r? c?)
-      (render-window self :height h :width w :row r :column c)
-    (render-window self)))
+      (render-window self :height h :width w :row r :column c :line l)
+    (render-window self :line l)))
 
 (defun dir-namestring (dir)
   (aref (nth-value 1 (cl-ppcre:scan-to-strings "/([^/]+/)$" dir)) 0))
