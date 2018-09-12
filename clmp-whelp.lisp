@@ -54,6 +54,7 @@
                          "s      - stop a current file"
                          "1      - play a previous file"
                          "2      - play a next file"
+                         "/      - search a directory or file"
                          "Up     - increase a volume"
                          "Down   - decrease a volume"
                          "Right  - go forward a track"

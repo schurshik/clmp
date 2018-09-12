@@ -120,7 +120,7 @@
 		    (format out "play-mode = play-once~%")
 		    (format out "# player: mplayer, mpv~%")
 		    (format out "player = mplayer~%")
-            (format out "# file-manager: one-panel, two-vertical-panels, two-horizontal-panels~%")
+		    (format out "# file-manager: one-panel, two-vertical-panels, two-horizontal-panels~%")
 		    (format out "file-manager = one-panel~%")
 		    (format out "# radio_station_name = radio_station_addr~%"))))
 
