@@ -62,6 +62,7 @@
                          "H      - show help information"
                          "R      - show radio stations"
                          "F      - show file manager"
+                         "r      - reload a configuration file"
                          "ESCAPE - hide help information"
                          "q      - quit from the application"
                          ""

@@ -40,6 +40,7 @@
 (setq radio-stations (make-hash-table :test 'equal))
 
 (defun read-config-file ()
+  (clrhash radio-stations)
   (if (probe-file 
        #+sbcl
        (make-pathname :directory config-file)
